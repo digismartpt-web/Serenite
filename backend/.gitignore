@@ -1,0 +1,19 @@
+# ─── Secrets backend — NE JAMAIS COMMITTER ───────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ─── Node ─────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+
+# ─── Build TypeScript ──────────────────────────────────────────
+dist/
+build/
+*.tsbuildinfo
+
+# ─── Logs ─────────────────────────────────────────────────────
+logs/
+*.log

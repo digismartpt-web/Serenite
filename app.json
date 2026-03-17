@@ -1,0 +1,31 @@
+{
+  "expo": {
+    "name": "Sérénité",
+    "slug": "serenite",
+    "version": "1.0.0",
+    "scheme": "serenite",
+    "platforms": ["ios", "android"],
+    "ios": {
+      "bundleIdentifier": "app.serenite",
+      "associatedDomains": ["applinks:serenite.app"]
+    },
+    "android": {
+      "package": "app.serenite",
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "autoVerify": true,
+          "data": [
+            { "scheme": "https",    "host": "serenite.app", "pathPrefix": "/join" },
+            { "scheme": "serenite", "pathPrefix": "/join" }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      ["expo-notifications", { "sounds": ["assets/sounds/notification.wav"] }]
+    ]
+  }
+}
