@@ -208,6 +208,64 @@ CREATE INDEX idx_messages_created    ON messages(family_id, created_at DESC);
 CREATE INDEX idx_messages_unread     ON messages(family_id, read_at) WHERE read_at IS NULL;
 
 -- ============================================================
+-- ÉVÉNEMENTS AGENDA
+-- ============================================================
+
+CREATE TABLE events (
+  id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_id   UUID         REFERENCES families(id) ON DELETE CASCADE,
+  created_by  UUID         REFERENCES users(id),
+  title       VARCHAR(200) NOT NULL,
+  description TEXT,
+  start_at    TIMESTAMPTZ  NOT NULL,
+  end_at      TIMESTAMPTZ  NOT NULL,
+  all_day     BOOLEAN      DEFAULT FALSE,
+  category    VARCHAR(20)  DEFAULT 'autre'
+                CHECK (category IN ('visite','vacances','scolaire','medical','activite','autre')),
+  color       VARCHAR(7),
+  created_at  TIMESTAMPTZ  DEFAULT NOW(),
+  updated_at  TIMESTAMPTZ  DEFAULT NOW()
+);
+
+CREATE TABLE event_children (
+  event_id  UUID REFERENCES events(id)   ON DELETE CASCADE,
+  child_id  UUID REFERENCES children(id) ON DELETE CASCADE,
+  PRIMARY KEY (event_id, child_id)
+);
+
+CREATE INDEX idx_events_family     ON events(family_id);
+CREATE INDEX idx_events_start      ON events(family_id, start_at);
+CREATE INDEX idx_events_created_by ON events(created_by);
+
+CREATE TRIGGER trg_events_updated_at
+  BEFORE UPDATE ON events
+  FOR EACH ROW
+  EXECUTE FUNCTION fn_set_updated_at();
+
+-- ============================================================
+-- DÉPENSES / FINANCES
+-- ============================================================
+
+CREATE TABLE expenses (
+  id           UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_id    UUID          REFERENCES families(id) ON DELETE CASCADE,
+  paid_by      UUID          REFERENCES users(id),
+  title        VARCHAR(200)  NOT NULL,
+  amount       DECIMAL(10,2) NOT NULL CHECK (amount > 0),
+  category     VARCHAR(30)   DEFAULT 'autre'
+                 CHECK (category IN
+                   ('garde','activite','sante','scolarite','vetement','alimentation','loisir','autre')),
+  expense_date DATE          NOT NULL DEFAULT CURRENT_DATE,
+  split_ratio  DECIMAL(4,2)  DEFAULT 0.50 CHECK (split_ratio BETWEEN 0 AND 1),
+  notes        TEXT,
+  created_at   TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE INDEX idx_expenses_family ON expenses(family_id);
+CREATE INDEX idx_expenses_date   ON expenses(family_id, expense_date DESC);
+CREATE INDEX idx_expenses_paid   ON expenses(paid_by);
+
+-- ============================================================
 -- Nettoyage des invitations expirées
 -- À planifier via pg_cron (ex: toutes les heures)
 -- SELECT cron.schedule('expire-invitations','0 * * * *',

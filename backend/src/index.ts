@@ -10,6 +10,8 @@ import authRouter        from './routes/auth';
 import invitationsRouter from './routes/invitations';
 import familiesRouter    from './routes/families';
 import messagesRouter    from './routes/messages';
+import eventsRouter      from './routes/events';
+import expensesRouter    from './routes/expenses';
 
 // ─── Validation des variables d'environnement critiques ───────
 // L'application refuse de démarrer si une variable obligatoire manque.
@@ -91,6 +93,8 @@ app.use('/api/auth',        authRouter);
 app.use('/api/invitations', invitationsRouter);
 app.use('/api/families',    familiesRouter);
 app.use('/api/messages',    messagesRouter);
+app.use('/api/events',      eventsRouter);
+app.use('/api/expenses',    expensesRouter);
 
 // ── Health check (utilisé par Coolify pour le liveness probe) ─
 app.get('/health', (_req, res) => {
