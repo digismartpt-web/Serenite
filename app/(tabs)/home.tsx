@@ -1,0 +1,403 @@
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View, Text, ScrollView, TouchableOpacity,
+  StyleSheet, Animated, Platform,
+} from 'react-native';
+import { useRouter } from 'expo-router';
+import { Ionicons }  from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+import { useTheme } from '../context/ThemeContext';
+import { useAuth }  from '../hooks/useAuth';
+
+// ─── Types ────────────────────────────────────────────────────
+
+interface Notification {
+  id:      string;
+  icon:    string;
+  title:   string;
+  body:    string;
+  time:    string;
+  unread:  boolean;
+}
+
+interface Shortcut {
+  id:     string;
+  icon:   React.ComponentProps<typeof Ionicons>['name'];
+  label:  string;
+  route:  string;
+  color:  string;
+}
+
+// ─── Données mock (remplacées par API en Wave 2-3) ───────────
+
+const SHORTCUTS: Shortcut[] = [
+  { id: 'agenda',    icon: 'calendar-outline',  label: 'Agenda',    route: '/(tabs)/calendar', color: '#4A90D9' },
+  { id: 'message',   icon: 'chatbubble-outline', label: 'Message',   route: '/(tabs)/messages', color: '#1D9E75' },
+  { id: 'depense',   icon: 'receipt-outline',    label: 'Dépense',   route: '/(tabs)/finances', color: '#D97706' },
+  { id: 'documents', icon: 'document-outline',   label: 'Documents', route: '/documents',        color: '#7C3AED' },
+];
+
+const MOCK_NOTIFICATIONS: Notification[] = [
+  {
+    id: '1', icon: '💬', unread: true, time: 'il y a 5 min',
+    title: 'Nouveau message de Marie',
+    body:  'Peux-tu récupérer Emma à 17h demain ?',
+  },
+  {
+    id: '2', icon: '📅', unread: true, time: 'il y a 1h',
+    title: 'Rendez-vous demain',
+    body:  'Visite médicale Lucas — 14h30 Cabinet Duval',
+  },
+  {
+    id: '3', icon: '💰', unread: false, time: 'hier',
+    title: 'Dépense à valider',
+    body:  'Marie a ajouté une dépense : Fournitures scolaires 48 €',
+  },
+];
+
+// ─── Utilitaires ──────────────────────────────────────────────
+
+function computeCountdown(): string {
+  const now      = new Date();
+  const midnight = new Date(now);
+  midnight.setHours(23, 59, 59, 999);
+  const diff = midnight.getTime() - now.getTime();
+  const h = Math.floor(diff / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  const s = Math.floor((diff % 60000) / 1000);
+  return `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+}
+
+function greetingByHour(): string {
+  const h = new Date().getHours();
+  if (h < 12) return 'Bonjour';
+  if (h < 18) return 'Bon après-midi';
+  return 'Bonsoir';
+}
+
+// ─── Écran Accueil ────────────────────────────────────────────
+
+export default function HomeScreen() {
+  const router  = useRouter();
+  const insets  = useSafeAreaInsets();
+  const { theme } = useTheme();
+  const { user }  = useAuth();
+
+  const [countdown, setCountdown] = useState(computeCountdown());
+
+  // Barre sérénité — animation au montage
+  const serenityAnim = useRef(new Animated.Value(0)).current;
+  const SERENITY_SCORE = 0.73; // 73% — sera API en Wave 2
+
+  useEffect(() => {
+    Animated.spring(serenityAnim, {
+      toValue:   SERENITY_SCORE,
+      damping:   14,
+      stiffness: 80,
+      useNativeDriver: false,
+    }).start();
+  }, []);
+
+  // Compte à rebours live
+  useEffect(() => {
+    const interval = setInterval(() => setCountdown(computeCountdown()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const serenityWidth = serenityAnim.interpolate({
+    inputRange:  [0, 1],
+    outputRange: ['0%', '100%'],
+  });
+
+  const firstName  = user?.firstName ?? 'vous';
+  // Mock : ce soir c'est chez Maman (sera alimenté par l'API agenda)
+  const custodyAt  = 'Maman';
+  const custodyEmoji = '👩';
+
+  return (
+    <ScrollView
+      style={[styles.root, { backgroundColor: theme.background }]}
+      contentContainerStyle={[styles.container, { paddingTop: insets.top + 12 }]}
+      showsVerticalScrollIndicator={false}
+    >
+
+      {/* ─── En-tête ──────────────────────────────────────── */}
+      <View style={styles.header}>
+        <View>
+          <Text style={[styles.greeting, { color: theme.textSecondary }]}>
+            {greetingByHour()},
+          </Text>
+          <Text style={[styles.firstName, { color: theme.text }]}>
+            {firstName} 👋
+          </Text>
+        </View>
+        <TouchableOpacity
+          style={[styles.notifBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+          onPress={() => {}}
+          accessibilityLabel="Notifications"
+        >
+          <Ionicons name="notifications-outline" size={22} color={theme.primary} />
+          <View style={styles.notifDot} />
+        </TouchableOpacity>
+      </View>
+
+      {/* ─── Bannière garde ────────────────────────────────── */}
+      <View style={[styles.custodyCard, { backgroundColor: theme.primary }]}>
+        <View style={styles.custodyLeft}>
+          <Text style={styles.custodyLabel}>Ce soir</Text>
+          <Text style={styles.custodyTitle}>
+            {custodyEmoji}  Chez {custodyAt}
+          </Text>
+          <Text style={styles.custodyCountdown}>⏱  {countdown}</Text>
+        </View>
+        <View style={styles.custodyRight}>
+          <TouchableOpacity
+            style={styles.custodyBtn}
+            onPress={() => router.push('/(tabs)/calendar')}
+            accessibilityLabel="Voir l'agenda"
+          >
+            <Text style={styles.custodyBtnText}>Agenda →</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* ─── Raccourcis ────────────────────────────────────── */}
+      <View style={styles.sectionRow}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Accès rapide</Text>
+      </View>
+      <View style={styles.shortcuts}>
+        {SHORTCUTS.map((s) => (
+          <TouchableOpacity
+            key={s.id}
+            style={[styles.shortcutBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
+            onPress={() => router.push(s.route as any)}
+            activeOpacity={0.8}
+            accessibilityLabel={s.label}
+          >
+            <View style={[styles.shortcutIcon, { backgroundColor: s.color + '18' }]}>
+              <Ionicons name={s.icon} size={22} color={s.color} />
+            </View>
+            <Text style={[styles.shortcutLabel, { color: theme.text }]}>{s.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* ─── Métriques ─────────────────────────────────────── */}
+      <View style={styles.sectionRow}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Aujourd'hui</Text>
+      </View>
+      <View style={styles.metrics}>
+
+        {/* Messages non lus */}
+        <View style={[styles.metricCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.metricRow}>
+            <View style={[styles.metricIconBg, { backgroundColor: '#4A90D918' }]}>
+              <Ionicons name="chatbubbles" size={20} color="#4A90D9" />
+            </View>
+            <Text style={[styles.metricValue, { color: theme.text }]}>3</Text>
+          </View>
+          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
+            Messages{'\n'}non lus
+          </Text>
+        </View>
+
+        {/* Score sérénité */}
+        <View style={[styles.metricCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          <View style={styles.metricRow}>
+            <View style={[styles.metricIconBg, { backgroundColor: '#1D9E7518' }]}>
+              <Ionicons name="leaf" size={20} color="#1D9E75" />
+            </View>
+            <Text style={[styles.metricValue, { color: theme.text }]}>
+              {Math.round(SERENITY_SCORE * 100)}%
+            </Text>
+          </View>
+          <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
+            Score{'\n'}sérénité
+          </Text>
+        </View>
+
+      </View>
+
+      {/* ─── Barre sérénité ────────────────────────────────── */}
+      <View style={[styles.serenityCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+        <View style={styles.serenityHeader}>
+          <Text style={[styles.serenityTitle, { color: theme.text }]}>
+            🕊️  Indice de sérénité
+          </Text>
+          <Text style={[styles.serenityScore, { color: '#1D9E75' }]}>
+            {Math.round(SERENITY_SCORE * 100)} / 100
+          </Text>
+        </View>
+        <View style={[styles.serenityTrack, { backgroundColor: theme.surfaceAlt }]}>
+          <Animated.View
+            style={[styles.serenityFill, { width: serenityWidth }]}
+            accessibilityLabel={`Score sérénité : ${Math.round(SERENITY_SCORE * 100)}%`}
+          />
+        </View>
+        <Text style={[styles.serenityHint, { color: theme.textSecondary }]}>
+          Basé sur le ton des 30 derniers messages
+        </Text>
+      </View>
+
+      {/* ─── Notifications récentes ────────────────────────── */}
+      <View style={styles.sectionRow}>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Récent</Text>
+        <TouchableOpacity onPress={() => {}}>
+          <Text style={[styles.seeAll, { color: theme.primary }]}>Tout voir</Text>
+        </TouchableOpacity>
+      </View>
+
+      {MOCK_NOTIFICATIONS.map((notif) => (
+        <TouchableOpacity
+          key={notif.id}
+          style={[
+            styles.notifCard,
+            { backgroundColor: theme.surface, borderColor: theme.border },
+            notif.unread && { borderLeftWidth: 3, borderLeftColor: theme.primary },
+          ]}
+          activeOpacity={0.8}
+          accessibilityLabel={notif.title}
+        >
+          <Text style={styles.notifCardIcon}>{notif.icon}</Text>
+          <View style={styles.notifCardTexts}>
+            <View style={styles.notifCardRow}>
+              <Text style={[styles.notifCardTitle, { color: theme.text }]} numberOfLines={1}>
+                {notif.title}
+              </Text>
+              <Text style={[styles.notifCardTime, { color: theme.textSecondary }]}>
+                {notif.time}
+              </Text>
+            </View>
+            <Text style={[styles.notifCardBody, { color: theme.textSecondary }]} numberOfLines={1}>
+              {notif.body}
+            </Text>
+          </View>
+          {notif.unread && <View style={[styles.unreadDot, { backgroundColor: theme.primary }]} />}
+        </TouchableOpacity>
+      ))}
+
+      <View style={{ height: 24 }} />
+    </ScrollView>
+  );
+}
+
+// ─── Styles ───────────────────────────────────────────────────
+
+const styles = StyleSheet.create({
+  root:      { flex: 1 },
+  container: { paddingHorizontal: 20, gap: 14 },
+
+  // ── En-tête
+  header: {
+    flexDirection:  'row',
+    justifyContent: 'space-between',
+    alignItems:     'flex-start',
+    marginBottom:   4,
+  },
+  greeting: { fontSize: 14, fontWeight: '500' },
+  firstName: { fontSize: 26, fontWeight: '800', marginTop: 2 },
+  notifBtn: {
+    width: 42, height: 42, borderRadius: 21,
+    borderWidth: 1, justifyContent: 'center', alignItems: 'center',
+    ...Platform.select({
+      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3 },
+      android: { elevation: 2 },
+    }),
+  },
+  notifDot: {
+    position: 'absolute', top: 8, right: 8,
+    width: 8, height: 8, borderRadius: 4, backgroundColor: '#E53E3E',
+  },
+
+  // ── Bannière garde
+  custodyCard: {
+    borderRadius: 16, padding: 20,
+    flexDirection: 'row', alignItems: 'center',
+    ...Platform.select({
+      ios:     { shadowColor: '#1A3A5C', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.22, shadowRadius: 10 },
+      android: { elevation: 6 },
+    }),
+  },
+  custodyLeft:      { flex: 1, gap: 4 },
+  custodyLabel:     { fontSize: 11, color: 'rgba(255,255,255,0.70)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.8 },
+  custodyTitle:     { fontSize: 20, fontWeight: '800', color: '#FFFFFF' },
+  custodyCountdown: { fontSize: 13, color: 'rgba(255,255,255,0.85)', fontWeight: '600', marginTop: 2 },
+  custodyRight:     { justifyContent: 'center' },
+  custodyBtn: {
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderRadius: 10, paddingVertical: 8, paddingHorizontal: 14,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.30)',
+  },
+  custodyBtnText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+
+  // ── Section
+  sectionRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    marginTop: 4,
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '700' },
+  seeAll:       { fontSize: 13, fontWeight: '600' },
+
+  // ── Raccourcis
+  shortcuts: { flexDirection: 'row', gap: 10 },
+  shortcutBtn: {
+    flex: 1, alignItems: 'center', gap: 8,
+    paddingVertical: 14, borderRadius: 12, borderWidth: 1,
+    ...Platform.select({
+      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 },
+      android: { elevation: 1 },
+    }),
+  },
+  shortcutIcon:  { width: 40, height: 40, borderRadius: 12, justifyContent: 'center', alignItems: 'center' },
+  shortcutLabel: { fontSize: 11, fontWeight: '600', textAlign: 'center' },
+
+  // ── Métriques
+  metrics:    { flexDirection: 'row', gap: 12 },
+  metricCard: {
+    flex: 1, borderRadius: 14, padding: 16, borderWidth: 1, gap: 10,
+    ...Platform.select({
+      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 },
+      android: { elevation: 1 },
+    }),
+  },
+  metricRow:    { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  metricIconBg: { width: 34, height: 34, borderRadius: 10, justifyContent: 'center', alignItems: 'center' },
+  metricValue:  { fontSize: 22, fontWeight: '800' },
+  metricLabel:  { fontSize: 12, lineHeight: 16 },
+
+  // ── Barre sérénité
+  serenityCard: {
+    borderRadius: 14, padding: 16, borderWidth: 1, gap: 10,
+    ...Platform.select({
+      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3 },
+      android: { elevation: 1 },
+    }),
+  },
+  serenityHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  serenityTitle:  { fontSize: 14, fontWeight: '700' },
+  serenityScore:  { fontSize: 16, fontWeight: '800' },
+  serenityTrack:  { height: 10, borderRadius: 5, overflow: 'hidden' },
+  serenityFill: {
+    height: '100%', borderRadius: 5,
+    backgroundColor: '#1D9E75',
+  },
+  serenityHint:   { fontSize: 12 },
+
+  // ── Notifications
+  notifCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 12, borderWidth: 1,
+    ...Platform.select({
+      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2 },
+      android: { elevation: 1 },
+    }),
+  },
+  notifCardIcon:   { fontSize: 24 },
+  notifCardTexts:  { flex: 1, gap: 2 },
+  notifCardRow:    { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  notifCardTitle:  { fontSize: 14, fontWeight: '700', flex: 1 },
+  notifCardTime:   { fontSize: 11, marginLeft: 8 },
+  notifCardBody:   { fontSize: 13, lineHeight: 18 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4 },
+});

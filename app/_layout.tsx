@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Platform, Linking } from 'react-native';
 import { Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // ─── Configuration des notifications push ────────────────────
 Notifications.setNotificationHandler({
@@ -65,21 +66,23 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown:  false,
-        animation:    'slide_from_right',
-        contentStyle: { backgroundColor: '#F7F9FC' },
-      }}
-    >
-      {/* Onboarding */}
-      <Stack.Screen name="(onboarding)" options={{ animation: 'fade' }} />
+    <SafeAreaProvider>
+      <Stack
+        screenOptions={{
+          headerShown:  false,
+          animation:    'slide_from_right',
+          contentStyle: { backgroundColor: '#F7F9FC' },
+        }}
+      >
+        {/* Onboarding */}
+        <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
 
-      {/* Tunnel d'invitation */}
-      <Stack.Screen name="invite"       options={{ headerShown: false }} />
+        {/* Tunnel d'invitation */}
+        <Stack.Screen name="invite"     options={{ headerShown: false }} />
 
-      {/* Application principale */}
-      <Stack.Screen name="(tabs)"       options={{ animation: 'fade' }} />
-    </Stack>
+        {/* Application principale */}
+        <Stack.Screen name="(tabs)"     options={{ animation: 'fade' }} />
+      </Stack>
+    </SafeAreaProvider>
   );
 }
