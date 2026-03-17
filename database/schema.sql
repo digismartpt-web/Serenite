@@ -185,6 +185,29 @@ LEFT JOIN users pa ON pa.id = f.parent_a_id
 LEFT JOIN users pb ON pb.id = f.parent_b_id;
 
 -- ============================================================
+-- MESSAGES CNV
+-- ============================================================
+
+CREATE TABLE messages (
+  id                   UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_id            UUID          REFERENCES families(id) ON DELETE CASCADE,
+  sender_id            UUID          REFERENCES users(id),
+  content              TEXT          NOT NULL,
+  original_content     TEXT,                           -- brouillon avant reformulation
+  is_reformulated      BOOLEAN       DEFAULT FALSE,
+  aggressiveness_score DECIMAL(3,2)  CHECK (aggressiveness_score BETWEEN 0 AND 1),
+  content_hash         VARCHAR(64),                    -- SHA-256 horodaté (preuve)
+  read_at              TIMESTAMPTZ,
+  pause_expires_at     TIMESTAMPTZ,                    -- pause 10 min si score > 0.7
+  created_at           TIMESTAMPTZ   DEFAULT NOW()
+);
+
+CREATE INDEX idx_messages_family     ON messages(family_id);
+CREATE INDEX idx_messages_sender     ON messages(sender_id);
+CREATE INDEX idx_messages_created    ON messages(family_id, created_at DESC);
+CREATE INDEX idx_messages_unread     ON messages(family_id, read_at) WHERE read_at IS NULL;
+
+-- ============================================================
 -- Nettoyage des invitations expirées
 -- À planifier via pg_cron (ex: toutes les heures)
 -- SELECT cron.schedule('expire-invitations','0 * * * *',

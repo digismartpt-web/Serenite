@@ -9,6 +9,7 @@ import { checkConnection } from './lib/database';
 import authRouter        from './routes/auth';
 import invitationsRouter from './routes/invitations';
 import familiesRouter    from './routes/families';
+import messagesRouter    from './routes/messages';
 
 // ─── Validation des variables d'environnement critiques ───────
 // L'application refuse de démarrer si une variable obligatoire manque.
@@ -89,6 +90,7 @@ app.set('trust proxy', 1); // Nécessaire pour req.ip derrière Traefik/Coolify
 app.use('/api/auth',        authRouter);
 app.use('/api/invitations', invitationsRouter);
 app.use('/api/families',    familiesRouter);
+app.use('/api/messages',    messagesRouter);
 
 // ── Health check (utilisé par Coolify pour le liveness probe) ─
 app.get('/health', (_req, res) => {
