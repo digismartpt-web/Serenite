@@ -1,0 +1,51 @@
+version: '3.9'
+
+# ─────────────────────────────────────────────────────────────
+# Sérénité — Docker Compose (déploiement Coolify)
+#
+# Prérequis : PostgreSQL déjà provisionné sur le VPS (Coolify DB)
+# Le backend se connecte via les variables DB_* dans .env
+# ─────────────────────────────────────────────────────────────
+
+services:
+
+  backend:
+    build:
+      context:    ./backend
+      dockerfile: Dockerfile
+    image: serenite-backend:latest
+    container_name: serenite-backend
+
+    restart: unless-stopped
+
+    ports:
+      - "3000:3000"
+
+    env_file:
+      - ./backend/.env
+
+    # Override possible via variables Coolify (priorité sur .env)
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT:     ${PORT:-3000}
+
+    healthcheck:
+      test:     ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout:  10s
+      retries:  3
+      start_period: 20s
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    labels:
+      # Traefik (Coolify reverse-proxy)
+      - "traefik.enable=true"
+      - "traefik.http.routers.serenite-api.rule=Host(`${DOMAIN:-localhost}`)"
+      - "traefik.http.routers.serenite-api.entrypoints=websecure"
+      - "traefik.http.routers.serenite-api.tls.certresolver=letsencrypt"
+      - "traefik.http.services.serenite-api.loadbalancer.server.port=3000"

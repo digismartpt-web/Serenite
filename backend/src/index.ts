@@ -97,8 +97,13 @@ app.use('/api/events',      eventsRouter);
 app.use('/api/expenses',    expensesRouter);
 
 // ── Health check (utilisé par Coolify pour le liveness probe) ─
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', version: '1.0.0', timestamp: new Date() });
+});
+
+// Alias legacy
 app.get('/health', (_req, res) => {
-  res.json({ status: 'ok', env: process.env.NODE_ENV, ts: new Date().toISOString() });
+  res.redirect(301, '/api/health');
 });
 
 // ─── Gestionnaire d'erreurs global ────────────────────────────
