@@ -243,6 +243,26 @@ CREATE TRIGGER trg_events_updated_at
   EXECUTE FUNCTION fn_set_updated_at();
 
 -- ============================================================
+-- DEMANDES D'ÉCHANGE DE GARDE
+-- ============================================================
+
+CREATE TABLE exchange_requests (
+  id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  family_id     UUID        REFERENCES families(id) ON DELETE CASCADE,
+  requested_by  UUID        REFERENCES users(id),
+  event_id      UUID        REFERENCES events(id)   ON DELETE CASCADE,
+  reason        TEXT,
+  proposed_date DATE,
+  status        VARCHAR(20) DEFAULT 'pending'
+                  CHECK (status IN ('pending','accepted','refused','cancelled')),
+  responded_at  TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX idx_exchange_family ON exchange_requests(family_id);
+CREATE INDEX idx_exchange_status ON exchange_requests(status) WHERE status = 'pending';
+
+-- ============================================================
 -- DÉPENSES / FINANCES
 -- ============================================================
 
@@ -257,6 +277,8 @@ CREATE TABLE expenses (
                    ('garde','activite','sante','scolarite','vetement','alimentation','loisir','autre')),
   expense_date DATE          NOT NULL DEFAULT CURRENT_DATE,
   split_ratio  DECIMAL(4,2)  DEFAULT 0.50 CHECK (split_ratio BETWEEN 0 AND 1),
+  validated_by UUID          REFERENCES users(id),
+  validated_at TIMESTAMPTZ,
   notes        TEXT,
   created_at   TIMESTAMPTZ   DEFAULT NOW()
 );

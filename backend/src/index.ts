@@ -93,8 +93,12 @@ app.use('/api/auth',        authRouter);
 app.use('/api/invitations', invitationsRouter);
 app.use('/api/families',    familiesRouter);
 app.use('/api/messages',    messagesRouter);
+// Calendrier : monté aux deux chemins (legacy /api/events + nouveau /api/calendar)
 app.use('/api/events',      eventsRouter);
+app.use('/api/calendar',    eventsRouter);
+// Finances : monté aux deux chemins (legacy /api/expenses + nouveau /api/finances)
 app.use('/api/expenses',    expensesRouter);
+app.use('/api/finances',    expensesRouter);
 
 // ── Health check (utilisé par Coolify pour le liveness probe) ─
 app.get('/api/health', (_req, res) => {

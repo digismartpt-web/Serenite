@@ -240,4 +240,59 @@ router.delete(
   }
 );
 
+// ─── POST /api/finances/:id/validate ──────────────────────────
+// L'autre parent valide (ou refuse) une dépense
+
+const ValidateBody = z.object({
+  action: z.enum(['validate', 'refuse']),
+});
+
+router.post(
+  '/:id/validate',
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const parsed = ValidateBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'action doit être "validate" ou "refuse"' });
+      return;
+    }
+
+    const userId    = req.user!.id;
+    const expenseId = req.params.id;
+    const { action } = parsed.data;
+
+    const existing = await queryOne<{
+      id: string; family_id: string; paid_by: string; validated_by: string | null;
+    }>(
+      `SELECT id, family_id, paid_by, validated_by FROM expenses WHERE id = $1`,
+      [expenseId]
+    );
+    if (!existing)              { res.status(404).json({ error: 'Dépense introuvable' }); return; }
+    if (existing.paid_by === userId) { res.status(403).json({ error: 'Impossible de valider sa propre dépense' }); return; }
+    if (existing.validated_by)  { res.status(409).json({ error: 'Dépense déjà traitée' }); return; }
+
+    if (!(await checkFamilyMember(existing.family_id, userId))) {
+      res.status(403).json({ error: 'Accès refusé' });
+      return;
+    }
+
+    if (action === 'refuse') {
+      // On supprime la dépense refusée
+      await query(`DELETE FROM expenses WHERE id = $1`, [expenseId]);
+      res.json({ message: 'Dépense refusée et supprimée' });
+      return;
+    }
+
+    // Validation
+    const row = await query(
+      `UPDATE expenses
+       SET validated_by = $2, validated_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [expenseId, userId]
+    );
+
+    res.json({ expense: row.rows[0] });
+  }
+);
+
 export default router;

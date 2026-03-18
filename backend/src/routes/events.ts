@@ -230,4 +230,89 @@ router.delete(
   }
 );
 
+// ─── POST /api/calendar/exchange-request ──────────────────────
+// Demande d'échange de jour de garde
+
+const ExchangeBody = z.object({
+  familyId:     z.string().uuid(),
+  eventId:      z.string().uuid(),
+  reason:       z.string().max(1000).trim().optional(),
+  proposedDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+});
+
+router.post(
+  '/exchange-request',
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const parsed = ExchangeBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Données invalides', fields: parsed.error.flatten().fieldErrors });
+      return;
+    }
+
+    const { familyId, eventId, reason, proposedDate } = parsed.data;
+    const userId = req.user!.id;
+
+    if (!(await checkFamilyMember(familyId, userId))) {
+      res.status(403).json({ error: 'Accès refusé' });
+      return;
+    }
+
+    const event = await queryOne<{ id: string }>(`SELECT id FROM events WHERE id = $1`, [eventId]);
+    if (!event) { res.status(404).json({ error: 'Événement introuvable' }); return; }
+
+    const row = await query(
+      `INSERT INTO exchange_requests (family_id, requested_by, event_id, reason, proposed_date)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [familyId, userId, eventId, reason ?? null, proposedDate ?? null]
+    );
+
+    res.status(201).json({ exchangeRequest: row.rows[0] });
+  }
+);
+
+// ─── PUT /api/calendar/exchange-request/:id/respond ───────────
+
+const RespondBody = z.object({
+  status: z.enum(['accepted', 'refused']),
+});
+
+router.put(
+  '/exchange-request/:id/respond',
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const parsed = RespondBody.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Données invalides' });
+      return;
+    }
+
+    const userId     = req.user!.id;
+    const requestId  = req.params.id;
+    const { status } = parsed.data;
+
+    const existing = await queryOne<{ id: string; family_id: string; requested_by: string; status: string }>(
+      `SELECT id, family_id, requested_by, status FROM exchange_requests WHERE id = $1`,
+      [requestId]
+    );
+    if (!existing)           { res.status(404).json({ error: 'Demande introuvable' }); return; }
+    if (existing.status !== 'pending') { res.status(409).json({ error: 'Demande déjà traitée' }); return; }
+    if (existing.requested_by === userId) { res.status(403).json({ error: 'Impossible de répondre à sa propre demande' }); return; }
+
+    if (!(await checkFamilyMember(existing.family_id, userId))) {
+      res.status(403).json({ error: 'Accès refusé' });
+      return;
+    }
+
+    const row = await query(
+      `UPDATE exchange_requests
+       SET status = $2, responded_at = NOW()
+       WHERE id = $1 RETURNING *`,
+      [requestId, status]
+    );
+
+    res.json({ exchangeRequest: row.rows[0] });
+  }
+);
+
 export default router;
