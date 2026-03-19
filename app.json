@@ -48,7 +48,10 @@
           ]
         }
       ],
-      "expo-asset"
+      "expo-asset",
+      "@react-native-community/datetimepicker",
+      "expo-mail-composer",
+      "expo-secure-store"
     ]
   }
 }
