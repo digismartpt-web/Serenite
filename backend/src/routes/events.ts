@@ -10,6 +10,8 @@ const router = Router();
 
 const CATEGORIES = ['visite', 'vacances', 'scolaire', 'medical', 'activite', 'autre'] as const;
 
+const EVENT_TYPES = ['medical', 'vacation', 'school', 'other'] as const;
+
 const EventBody = z.object({
   familyId:    z.string().uuid(),
   title:       z.string().min(1).max(200).trim(),
@@ -18,6 +20,7 @@ const EventBody = z.object({
   endAt:       z.string().datetime(),
   allDay:      z.boolean().default(false),
   category:    z.enum(CATEGORIES).default('autre'),
+  eventType:   z.enum(EVENT_TYPES).optional(),
   color:       z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
   childrenIds: z.array(z.string().uuid()).max(20).default([]),
 });
@@ -88,7 +91,7 @@ router.get(
       params
     );
 
-    res.json({ events: result.rows });
+    res.json({ events: result });
   }
 );
 
@@ -104,7 +107,7 @@ router.post(
       return;
     }
 
-    const { familyId, title, description, startAt, endAt, allDay, category, color, childrenIds } = parsed.data;
+    const { familyId, title, description, startAt, endAt, allDay, category, eventType, color, childrenIds } = parsed.data;
     const userId = req.user!.id;
 
     if (new Date(endAt) < new Date(startAt)) {
@@ -119,10 +122,10 @@ router.post(
 
     const event = await withTransaction(async (client) => {
       const row = await client.query(
-        `INSERT INTO events (family_id, created_by, title, description, start_at, end_at, all_day, category, color)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `INSERT INTO events (family_id, created_by, title, description, start_at, end_at, all_day, category, event_type, color)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
          RETURNING *`,
-        [familyId, userId, title, description ?? null, startAt, endAt, allDay, category, color ?? null]
+        [familyId, userId, title, description ?? null, startAt, endAt, allDay, category, eventType ?? null, color ?? null]
       );
       const ev = row.rows[0];
 
@@ -167,7 +170,7 @@ router.patch(
       return;
     }
 
-    const { title, description, startAt, endAt, allDay, category, color, childrenIds } = parsed.data;
+    const { title, description, startAt, endAt, allDay, category, eventType, color, childrenIds } = parsed.data;
 
     if (startAt && endAt && new Date(endAt) < new Date(startAt)) {
       res.status(400).json({ error: 'La date de fin doit être après la date de début' });
@@ -183,10 +186,11 @@ router.patch(
            end_at      = COALESCE($5, end_at),
            all_day     = COALESCE($6, all_day),
            category    = COALESCE($7, category),
-           color       = COALESCE($8, color)
+           event_type  = COALESCE($8, event_type),
+           color       = COALESCE($9, color)
          WHERE id = $1
          RETURNING *`,
-        [eventId, title, description, startAt, endAt, allDay, category, color]
+        [eventId, title, description, startAt, endAt, allDay, category, eventType ?? null, color]
       );
 
       if (childrenIds !== undefined) {
@@ -267,7 +271,7 @@ router.post(
       [familyId, userId, eventId, reason ?? null, proposedDate ?? null]
     );
 
-    res.status(201).json({ exchangeRequest: row.rows[0] });
+    res.status(201).json({ exchangeRequest: row[0] });
   }
 );
 
@@ -311,7 +315,7 @@ router.put(
       [requestId, status]
     );
 
-    res.json({ exchangeRequest: row.rows[0] });
+    res.json({ exchangeRequest: row[0] });
   }
 );
 

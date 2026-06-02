@@ -27,7 +27,7 @@ export function requireAuth(
 ): void {
   const header = req.headers.authorization;
   if (!header?.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Token d'authentification manquant' });
+    res.status(401).json({ error: "Token d'authentification manquant" });
     return;
   }
 

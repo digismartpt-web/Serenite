@@ -222,6 +222,8 @@ CREATE TABLE events (
   all_day     BOOLEAN      DEFAULT FALSE,
   category    VARCHAR(20)  DEFAULT 'autre'
                 CHECK (category IN ('visite','vacances','scolaire','medical','activite','autre')),
+  event_type  VARCHAR(20)  DEFAULT 'other'
+                CHECK (event_type IN ('medical','vacation','school','other')),
   color       VARCHAR(7),
   created_at  TIMESTAMPTZ  DEFAULT NOW(),
   updated_at  TIMESTAMPTZ  DEFAULT NOW()

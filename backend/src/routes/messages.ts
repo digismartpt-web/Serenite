@@ -1,6 +1,6 @@
 import { Router, Response }   from 'express';
 import crypto                  from 'crypto';
-import Anthropic               from '@anthropic-ai/sdk';
+import axios                   from 'axios';
 import { z }                   from 'zod';
 
 import { query, queryOne, withTransaction } from '../lib/database';
@@ -9,11 +9,10 @@ import { sendPushNotification }             from '../utils/notifications';
 
 const router = Router();
 
-// ─── Client Anthropic ─────────────────────────────────────────
-// Instancié une seule fois — réutilise la connexion HTTP keep-alive
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// ─── Client DeepSeek (API compatible OpenAI) ──────────────────
+const DEEPSEEK_API_URL  = process.env.DEEPSEEK_API_URL  || 'https://api.deepseek.com/v1';
+const DEEPSEEK_API_KEY  = process.env.DEEPSEEK_API_KEY  || '';
+const DEEPSEEK_MODEL    = process.env.DEEPSEEK_MODEL    || 'deepseek-v4-flash';
 
 // ─── Prompt CNV ───────────────────────────────────────────────
 const CNV_SYSTEM_PROMPT =
@@ -112,26 +111,31 @@ router.post(
     const aggressivenessScore = computeAggressivenessScore(content);
     const pauseRequired = aggressivenessScore > 0.7;
 
-    // Appel Claude Haiku pour reformulation
+    // Appel DeepSeek v4 Flash pour reformulation
     let reformulatedContent: string;
     try {
-      const response = await anthropic.messages.create({
-        model:      'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system:     CNV_SYSTEM_PROMPT,
-        messages: [
-          {
-            role:    'user',
-            content: content,
+      const dsResponse = await axios.post(
+        `${DEEPSEEK_API_URL}/chat/completions`,
+        {
+          model: DEEPSEEK_MODEL,
+          max_tokens: 1024,
+          messages: [
+            { role: 'system', content: CNV_SYSTEM_PROMPT },
+            { role: 'user',   content: content },
+          ],
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
+            'Content-Type':  'application/json',
           },
-        ],
-      });
+          timeout: 15_000,
+        }
+      );
 
-      const block = response.content[0];
-      if (block.type !== 'text') throw new Error('Réponse inattendue du modèle');
-      reformulatedContent = block.text.trim();
+      reformulatedContent = dsResponse.data.choices[0].message.content.trim();
     } catch (err) {
-      console.error('[messages/reformulate] Erreur API Anthropic :', (err as Error).message);
+      console.error('[messages/reformulate] Erreur API DeepSeek :', (err as Error).message);
       res.status(502).json({ error: 'Service de reformulation temporairement indisponible' });
       return;
     }
@@ -141,11 +145,22 @@ router.post(
       ? new Date(Date.now() + 10 * 60 * 1000).toISOString()
       : null;
 
+    // Déterminer si urgence (score très élevé)
+    const isUrgent = aggressivenessScore > 0.9;
+
     res.json({
       reformulatedContent,
       aggressivenessScore,
       pauseRequired,
       pauseExpiresAt,
+      ...(isUrgent && {
+        urgence: {
+          message: "Ce message semble très émotionnel. Prenez un moment pour vous.",
+          soutien: "Service d'écoute parentale : 0 800 00 00 00",
+          respiration: "Respiration guidée : inspirez 4s, bloquez 4s, expirez 6s. À répéter 5 fois.",
+          modele: "J'ai besoin d'un temps de pause avant de répondre. Je te recontacte dans quelques minutes.",
+        },
+      }),
     });
   }
 );
@@ -233,7 +248,7 @@ router.post(
       if (otherParent?.push_token) {
         await sendPushNotification(
           otherParent.push_token,
-          `Nouveau message de ${req.user!.firstName ?? 'votre coparent'}`,
+          `Nouveau message de ${(req.user as any).firstName ?? 'votre coparent'}`,
           content.slice(0, 100) + (content.length > 100 ? '…' : ''),
           { screen: 'messages', familyId }
         ).catch(() => { /* notification non critique */ });
@@ -296,7 +311,7 @@ router.get(
       [familyId, userId]
     );
 
-    res.json({ messages: result.rows.reverse() });
+    res.json({ messages: result.reverse() });
   }
 );
 
@@ -316,6 +331,23 @@ router.get(
     );
 
     res.json({ unreadCount: parseInt(row?.count ?? '0', 10) });
+  }
+);
+
+// ── Modèles de messages ─────────────────────────────────────
+const MESSAGE_TEMPLATES = [
+  "Bonjour [Prénom], je te confirme que [jour] je prends les enfants à [heure].",
+  "Pour la pension ce mois-ci, voici le récapitulatif des dépenses : …",
+  "Je te propose d'échanger le [date1] contre le [date2] pour la garde.",
+  "Pour le RDV médical du [date], j'emmène [enfant] à [heure].",
+  "Pense à remplir le carnet de santé / prendre les affaires pour [enfant].",
+];
+
+router.get(
+  '/templates',
+  requireAuth,
+  async (_req: AuthRequest, res: Response): Promise<void> => {
+    res.json({ templates: MESSAGE_TEMPLATES });
   }
 );
 

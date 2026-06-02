@@ -119,6 +119,26 @@ function TabsContent() {
       />
 
       <Tabs.Screen
+        name="voice"
+        options={{
+          title: 'Vocal',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'mic' : 'mic-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="resources"
+        options={{
+          title: 'Ressources',
+          tabBarIcon: ({ color, size, focused }) => (
+            <TabIcon name={focused ? 'heart' : 'heart-outline'} color={color} size={size} />
+          ),
+        }}
+      />
+
+      <Tabs.Screen
         name="finances"
         options={{
           title: 'Finances',

@@ -1,7 +1,8 @@
 import React, {
-  createContext, useContext, useState, useEffect, useCallback,
+  createContext, useContext, useState, useEffect, useCallback, useMemo,
 } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useColorScheme }  from 'react-native';
+import AsyncStorage         from '@react-native-async-storage/async-storage';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -36,7 +37,9 @@ export interface Theme {
   warning:        string;
 }
 
-// ─── 8 thèmes adultes + 2 thèmes enfants ─────────────────────
+export type ThemeMode = 'auto' | 'light' | 'dark';
+
+// ─── 8 thèmes adultes (version claire) + 2 thèmes enfants ────
 
 export const THEMES: Record<string, Theme> = {
 
@@ -145,7 +148,78 @@ export const THEMES: Record<string, Theme> = {
   },
 };
 
+// ─── Thèmes sombres correspondants ──────────────────────────
+// Fond sombre générique #0F1923 adapté à chaque thème
+
+export const DARK_THEMES: Record<string, Theme> = {
+
+  ciel: {
+    ...THEMES.ciel, id: 'ciel',
+    primary: '#4A90D9', primaryDark: '#378ADD', accent: '#34D399',
+    background: '#0F1923', surface: '#1A2736', surfaceAlt: '#243447',
+    border: '#2D4A5F', text: '#E2E8F0', textSecondary: '#94A3B8',
+    headerBg: '#0F1923',
+  },
+
+  foret: {
+    ...THEMES.foret, id: 'foret',
+    primary: '#48BB78', primaryDark: '#38A169', accent: '#48BB78',
+    background: '#0F1923', surface: '#16231A', surfaceAlt: '#1E3027',
+    border: '#2D5A3A', text: '#E2E8F0', textSecondary: '#94A3B8',
+    headerBg: '#0F1923',
+  },
+
+  soleil: {
+    ...THEMES.soleil, id: 'soleil',
+    primary: '#F59E0B', primaryDark: '#D97706', accent: '#F59E0B',
+    background: '#0F1923', surface: '#1E1A14', surfaceAlt: '#2A241A',
+    border: '#5A4A20', text: '#E2E8F0', textSecondary: '#94A3B8',
+    headerBg: '#0F1923',
+  },
+
+  lavande: {
+    ...THEMES.lavande, id: 'lavande',
+    primary: '#8B5CF6', primaryDark: '#7C3AED', accent: '#8B5CF6',
+    background: '#0F1923', surface: '#1A1828', surfaceAlt: '#24203A',
+    border: '#3D2D6A', text: '#E2E8F0', textSecondary: '#94A3B8',
+    headerBg: '#0F1923',
+  },
+
+  corail: {
+    ...THEMES.corail, id: 'corail',
+    primary: '#FC8181', primaryDark: '#E53E3E', accent: '#FC8181',
+    background: '#0F1923', surface: '#241A1A', surfaceAlt: '#342424',
+    border: '#6A2D2D', text: '#E2E8F0', textSecondary: '#94A3B8',
+    headerBg: '#0F1923',
+  },
+
+  ardoise: {
+    ...THEMES.ardoise, id: 'ardoise',
+    primary: '#63B3ED', primaryDark: '#4A90D9', accent: '#63B3ED',
+    background: '#0F1923', surface: '#1A202C', surfaceAlt: '#2D3748',
+    border: '#4A5568', text: '#E2E8F0', textSecondary: '#94A3B8',
+    headerBg: '#0F1923',
+  },
+
+  rose: {
+    ...THEMES.rose, id: 'rose',
+    primary: '#F687B3', primaryDark: '#D53F8C', accent: '#F687B3',
+    background: '#0F1923', surface: '#241420', surfaceAlt: '#341A2A',
+    border: '#6A2D4A', text: '#E2E8F0', textSecondary: '#94A3B8',
+    headerBg: '#0F1923',
+  },
+
+  ocean: {
+    ...THEMES.ocean, id: 'ocean',
+    primary: '#38BDF8', primaryDark: '#00B5D8', accent: '#38BDF8',
+    background: '#0F1923', surface: '#14242E', surfaceAlt: '#1A3040',
+    border: '#2D506A', text: '#E2E8F0', textSecondary: '#94A3B8',
+    headerBg: '#0F1923',
+  },
+};
+
 const THEME_STORAGE_KEY = '@serenite/theme';
+const THEME_MODE_KEY    = '@serenite/theme-mode';
 
 // ─── Context ──────────────────────────────────────────────────
 
@@ -154,17 +228,30 @@ interface ThemeContextValue {
   themeId:   string;
   setTheme:  (id: string) => void;
   allThemes: typeof THEMES;
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  isDark:    boolean;
 }
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeId] = useState('ciel');
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('auto');
 
-  // Restaurer le thème sauvegardé
+  // Détection du thème système React Native
+  const colorScheme = useColorScheme();
+
+  // Restaurer les préférences sauvegardées
   useEffect(() => {
-    AsyncStorage.getItem(THEME_STORAGE_KEY).then((saved) => {
-      if (saved && THEMES[saved]) setThemeId(saved);
+    Promise.all([
+      AsyncStorage.getItem(THEME_STORAGE_KEY),
+      AsyncStorage.getItem(THEME_MODE_KEY),
+    ]).then(([savedTheme, savedMode]) => {
+      if (savedTheme && THEMES[savedTheme]) setThemeId(savedTheme);
+      if (savedMode && (savedMode === 'auto' || savedMode === 'light' || savedMode === 'dark')) {
+        setThemeModeState(savedMode as ThemeMode);
+      }
     });
   }, []);
 
@@ -174,9 +261,27 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     AsyncStorage.setItem(THEME_STORAGE_KEY, id);
   }, []);
 
+  const setThemeMode = useCallback((mode: ThemeMode) => {
+    setThemeModeState(mode);
+    AsyncStorage.setItem(THEME_MODE_KEY, mode);
+  }, []);
+
+  // Calcul du mode sombre effectif
+  const isDark = useMemo(() => {
+    if (themeMode === 'auto') return colorScheme === 'dark';
+    return themeMode === 'dark';
+  }, [themeMode, colorScheme]);
+
+  // Thème effectif (clair ou sombre)
+  const theme = useMemo(() => {
+    const baseTheme = THEMES[themeId];
+    if (!isDark || baseTheme.isChildTheme) return baseTheme;
+    return DARK_THEMES[themeId] ?? baseTheme;
+  }, [themeId, isDark]);
+
   return (
     <ThemeContext.Provider
-      value={{ theme: THEMES[themeId], themeId, setTheme, allThemes: THEMES }}
+      value={{ theme, themeId, setTheme, allThemes: THEMES, themeMode, setThemeMode, isDark }}
     >
       {children}
     </ThemeContext.Provider>
@@ -187,4 +292,15 @@ export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
   if (!ctx) throw new Error('useTheme doit être utilisé dans <ThemeProvider>');
   return ctx;
+}
+
+export function useThemeMode() {
+  const ctx = useContext(ThemeContext);
+  if (!ctx) throw new Error('useThemeMode doit être utilisé dans <ThemeProvider>');
+  const resolvedTheme: 'light' | 'dark' = ctx.isDark ? 'dark' : 'light';
+  return {
+    themeMode:  ctx.themeMode,
+    setThemeMode: ctx.setThemeMode,
+    resolvedTheme,
+  };
 }

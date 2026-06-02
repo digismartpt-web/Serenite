@@ -24,6 +24,6 @@ export async function sendPushNotification(
       console.error('Erreur push notification:', ticket.message);
     }
   } catch (err) {
-    console.error('Impossible d'envoyer la notification:', err);
+    console.error("Impossible d'envoyer la notification:", err);
   }
 }

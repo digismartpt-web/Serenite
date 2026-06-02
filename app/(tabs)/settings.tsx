@@ -9,8 +9,8 @@ import { useSafeAreaInsets }  from 'react-native-safe-area-context';
 import * as SecureStore        from 'expo-secure-store';
 import AsyncStorage            from '@react-native-async-storage/async-storage';
 
-import { useTheme, THEMES, Theme } from '../context/ThemeContext';
-import { useAuth }                 from '../hooks/useAuth';
+import { useTheme, THEMES, Theme, ThemeMode } from '../context/ThemeContext';
+import { useAuth }                           from '../hooks/useAuth';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -93,16 +93,45 @@ const sectionStyles = StyleSheet.create({
 export default function SettingsScreen() {
   const router       = useRouter();
   const insets       = useSafeAreaInsets();
-  const { theme, themeId, setTheme } = useTheme();
+  const { theme, themeId, setTheme, themeMode, setThemeMode } = useTheme();
   const { user, token, logout }      = useAuth();
 
   const [notifications, setNotifications] = useState(true);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [updatingTheme, setUpdatingTheme] = useState(false);
 
   // ── Avatar initiales ───────────────────────────────────────
   const initials = user
     ? `${user.firstName?.[0] ?? ''}${user.lastName?.[0] ?? ''}`.toUpperCase()
     : '?';
+
+  // ── Export RGPD ────────────────────────────────────────────
+  async function handleExportData() {
+    try {
+      const res = await fetch(`${API_BASE}/api/users/export`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Erreur serveur');
+      const data = await res.json();
+      const json = JSON.stringify(data, null, 2);
+
+      // Sauvegarder dans AsyncStorage pour téléchargement / partage
+      await AsyncStorage.setItem('@serenite/rgpd-export', json);
+
+      Alert.alert(
+        'Export réussi',
+        'Vos données personnelles ont été exportées avec succès.\n\n' +
+        `Contenu : ${json.length.toLocaleString('fr-FR')} caractères au format JSON.`,
+        [{ text: 'OK' }]
+      );
+    } catch (err) {
+      Alert.alert(
+        'Erreur',
+        'Impossible d\'exporter vos données. Vérifiez votre connexion.'
+      );
+    }
+  }
 
   // ── Déconnexion ────────────────────────────────────────────
   function handleLogout() {
@@ -234,6 +263,42 @@ export default function SettingsScreen() {
         {/* ─ Apparence ─ */}
         <SectionHeader title="Apparence" theme={theme} />
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
+          {/* Mode d'affichage */}
+          <View style={styles.themeContainer}>
+            <Text style={[styles.themeGroupLabel, { color: theme.textSecondary }]}>Mode d'affichage</Text>
+            <View style={styles.modeRow}>
+              {(['auto', 'light', 'dark'] as ThemeMode[]).map((mode) => {
+                const labels: Record<ThemeMode, string> = { auto: 'Auto', light: 'Clair', dark: 'Sombre' };
+                const icons: Record<ThemeMode, string> = { auto: 'phone-portrait-outline', light: 'sunny-outline', dark: 'moon-outline' };
+                const isActive = themeMode === mode;
+                return (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[
+                      styles.modeChip,
+                      { borderColor: theme.border },
+                      isActive && { backgroundColor: theme.primary, borderColor: theme.primary },
+                    ]}
+                    onPress={() => setThemeMode(mode)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={icons[mode] as any}
+                      size={16}
+                      color={isActive ? '#FFF' : theme.textSecondary}
+                    />
+                    <Text style={[
+                      styles.modeChipLabel,
+                      { color: isActive ? '#FFF' : theme.textSecondary },
+                    ]}>
+                      {labels[mode]}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
           <View style={styles.themeContainer}>
             <Text style={[styles.themeGroupLabel, { color: theme.textSecondary }]}>Thèmes adultes</Text>
             <View style={styles.themeGrid}>
@@ -337,6 +402,14 @@ export default function SettingsScreen() {
             theme={theme}
           />
           <SettingRow
+            icon="download-outline"
+            label="Exporter mes données RGPD"
+            value="JSON — toutes mes données personnelles"
+            iconColor="#276749"
+            onPress={handleExportData}
+            theme={theme}
+          />
+          <SettingRow
             icon="trash-outline"
             label="Supprimer mon compte"
             iconColor={theme.danger}
@@ -414,6 +487,14 @@ const styles = StyleSheet.create({
       android: { elevation: 1 },
     }),
   },
+
+  // Mode d'affichage
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: 16 },
+  modeChip: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
+    borderWidth: 1.5, borderRadius: 10, paddingVertical: 10, paddingHorizontal: 8,
+  },
+  modeChipLabel: { fontSize: 12, fontWeight: '700' },
 
   // Thèmes
   themeContainer: { padding: 16 },

@@ -41,6 +41,15 @@ const CATEGORIES: Record<Category, { label: string; emoji: string; color: string
   autre:     { label: 'Autre',           emoji: '📌', color: '#5A7499' },
 };
 
+type EventType = 'medical' | 'vacation' | 'school' | 'other';
+
+const EVENT_TYPES: Record<EventType, { label: string; emoji: string }> = {
+  medical:  { label: 'RDV médical',  emoji: '🏥' },
+  vacation: { label: 'Vacances',     emoji: '🌴' },
+  school:   { label: 'École',        emoji: '📚' },
+  other:    { label: 'Autre',        emoji: '📌' },
+};
+
 const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
 const MOIS_FR = [
   'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
@@ -199,6 +208,7 @@ interface AddEventFormProps {
 function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: AddEventFormProps) {
   const [title,    setTitle]    = useState('');
   const [category, setCategory] = useState<Category>('visite');
+  const [eventType, setEventType] = useState<EventType | null>(null);
   const [allDay,   setAllDay]   = useState(true);
   const [startAt,  setStartAt]  = useState(new Date(`${initDate}T08:00:00`));
   const [endAt,    setEndAt]    = useState(new Date(`${initDate}T18:00:00`));
@@ -220,6 +230,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
           endAt:   allDay ? `${isoDateKey(endAt)}T23:59:59Z`   : endAt.toISOString(),
           allDay,
           category,
+          eventType: eventType ?? undefined,
           childrenIds: [],
         }),
       });
@@ -270,6 +281,41 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
                   <Text style={{ fontSize: 13 }}>{CATEGORIES[cat].emoji}</Text>
                   <Text style={[formStyles.catLabel, { color: category === cat ? '#FFF' : CATEGORIES[cat].color }]}>
                     {CATEGORIES[cat].label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </ScrollView>
+
+          {/* Type d'événement (optionnel) */}
+          <Text style={[formStyles.label, { color: theme.textSecondary }]}>Type (optionnel)</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[
+                  formStyles.catChip,
+                  { borderColor: theme.border },
+                  eventType === null && { backgroundColor: theme.primary },
+                ]}
+                onPress={() => setEventType(null)}
+              >
+                <Text style={[formStyles.catLabel, { color: eventType === null ? '#FFF' : theme.textSecondary }]}>
+                  Aucun
+                </Text>
+              </TouchableOpacity>
+              {(Object.keys(EVENT_TYPES) as EventType[]).map((et) => (
+                <TouchableOpacity
+                  key={et}
+                  style={[
+                    formStyles.catChip,
+                    { borderColor: theme.border },
+                    eventType === et && { backgroundColor: theme.primary },
+                  ]}
+                  onPress={() => setEventType(et)}
+                >
+                  <Text style={{ fontSize: 13 }}>{EVENT_TYPES[et].emoji}</Text>
+                  <Text style={[formStyles.catLabel, { color: eventType === et ? '#FFF' : theme.textSecondary }]}>
+                    {EVENT_TYPES[et].label}
                   </Text>
                 </TouchableOpacity>
               ))}

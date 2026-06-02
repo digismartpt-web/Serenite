@@ -299,7 +299,7 @@ function ChildCard({
                 <View style={styles.autonomousTexts}>
                   <Text style={styles.label}>Accès autonome</Text>
                   <Text style={styles.autonomousSub}>
-                    Crée un code à 8 chiffres pour que {form.firstName || 'l'enfant'} accède à son espace
+                    Crée un code à 8 chiffres pour que {form.firstName || "l'enfant"} accède à son espace
                   </Text>
                 </View>
                 <Switch

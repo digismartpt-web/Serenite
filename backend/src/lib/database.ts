@@ -9,6 +9,7 @@ const pool = new Pool({
   database:               process.env.DB_NAME     ?? 'serenite',
   user:                   process.env.DB_USER     ?? 'postgres',
   password:               process.env.DB_PASSWORD ?? '',
+  options:                '-c search_path=sereno',
   ssl:
     process.env.NODE_ENV === 'production'
       ? { rejectUnauthorized: false }

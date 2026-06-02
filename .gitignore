@@ -26,6 +26,14 @@ web-build/
 google-services.json
 GoogleService-Info.plist
 
+# ─── Android build ─────────────────────────────────────────────
+*.jks
+*.keystore
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+
 # ─── TypeScript ───────────────────────────────────────────────
 *.tsbuildinfo
 

@@ -305,7 +305,7 @@ router.put('/update-pin', requireAuth, async (req: AuthRequest, res: Response): 
     // Vérifier que le nouveau PIN est différent
     const samePin = await bcrypt.compare(newPin, user.pin_hash);
     if (samePin) {
-      res.status(400).json({ error: 'Le nouveau PIN doit être différent de l'ancien' });
+      res.status(400).json({ error: "Le nouveau PIN doit être différent de l'ancien" });
       return;
     }
 

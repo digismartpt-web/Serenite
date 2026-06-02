@@ -6,8 +6,47 @@
     "scheme": "serenite",
     "platforms": [
       "ios",
-      "android"
+      "android",
+      "web"
     ],
+    "web": {
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/favicon.png",
+      "name": "Sérénité",
+      "shortName": "Sérénité",
+      "description": "Application de médiation parentale avec IA - Communication Non-Violente",
+      "lang": "fr",
+      "scope": "/",
+      "themeColor": "#378ADD",
+      "backgroundColor": "#F4F8FF",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "barStyle": "black-translucent",
+      "preferRelatedApplications": false,
+      "relatedApplications": [],
+      "apple": {
+        "mobileWebAppStatusBarStyle": "black-translucent"
+      },
+      "icons": [
+        {
+          "src": "/assets/icons/icon-192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        },
+        {
+          "src": "/assets/icons/icon-512.png",
+          "sizes": "512x512",
+          "type": "image/png",
+          "purpose": "maskable"
+        }
+      ],
+      "splash": {
+        "backgroundColor": "#F4F8FF",
+        "resizeMode": "contain"
+      }
+    },
     "ios": {
       "bundleIdentifier": "app.serenite",
       "associatedDomains": [
@@ -51,7 +90,8 @@
       "expo-asset",
       "@react-native-community/datetimepicker",
       "expo-mail-composer",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-audio"
     ]
   }
 }

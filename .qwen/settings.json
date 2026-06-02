@@ -1,0 +1,5 @@
+{
+  "startupPrompt": "🔹 Chargement contexte Sérénité...\n✅ AGENTS.md lu | 📖 SERENITE_MEMORY.md chargé | ⚠️ Règles Supabase actives\n👉 Prêt. Quelle est ta prochaine instruction ?",
+  "autoLoadFiles": ["AGENTS.md", "SERENITE_MEMORY.md"],
+  "quietMode": true
+}

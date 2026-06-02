@@ -129,7 +129,7 @@ router.get(
     };
 
     res.json({
-      expenses: result.rows,
+      expenses: result,
       balance,
       otherParentId: iAmParentA ? family.parent_b_id : family.parent_a_id,
     });
@@ -291,7 +291,7 @@ router.post(
       [expenseId, userId]
     );
 
-    res.json({ expense: row.rows[0] });
+    res.json({ expense: row[0] });
   }
 );
 

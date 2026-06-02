@@ -10,6 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth }  from '../hooks/useAuth';
 
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+
 // ─── Types ────────────────────────────────────────────────────
 
 interface Notification {
@@ -27,6 +29,18 @@ interface Shortcut {
   label:  string;
   route:  string;
   color:  string;
+}
+
+interface MedicalEvent {
+  id:         string;
+  title:      string;
+  start_at:   string;
+  end_at:     string;
+  all_day:    boolean;
+  category:   string;
+  event_type: string | null;
+  color:      string | null;
+  creator_first_name: string;
 }
 
 // ─── Données mock (remplacées par API en Wave 2-3) ───────────
@@ -82,9 +96,46 @@ export default function HomeScreen() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
   const { theme } = useTheme();
-  const { user }  = useAuth();
+  const { user, token }  = useAuth();
 
   const [countdown, setCountdown] = useState(computeCountdown());
+  const [familyId, setFamilyId] = useState<string | null>(null);
+  const [medicalEvents, setMedicalEvents] = useState<MedicalEvent[]>([]);
+  const [loadingMedical, setLoadingMedical] = useState(false);
+
+  // ── Charger famille ──────────────────────────────────────────
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/api/families/me`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((r) => r.json())
+      .then((d) => setFamilyId(d.family?.id ?? null))
+      .catch(() => {});
+  }, [token]);
+
+  // ── Charger les prochains RDV médicaux ─────────────────────
+  useEffect(() => {
+    if (!token || !familyId) return;
+    setLoadingMedical(true);
+    const now   = new Date();
+    const threeMonths = new Date(now);
+    threeMonths.setMonth(threeMonths.getMonth() + 3);
+    fetch(
+      `${API_BASE}/api/events?familyId=${familyId}&from=${encodeURIComponent(now.toISOString())}&to=${encodeURIComponent(threeMonths.toISOString())}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+      .then((r) => r.json())
+      .then((d) => {
+        const events: MedicalEvent[] = d.events ?? [];
+        // Filtrer : catégorie 'medical' OU event_type 'medical'
+        setMedicalEvents(
+          events.filter((e: MedicalEvent) =>
+            e.category === 'medical' || e.event_type === 'medical'
+          )
+        );
+      })
+      .catch(() => {})
+      .finally(() => setLoadingMedical(false));
+  }, [token, familyId]);
 
   // Barre sérénité — animation au montage
   const serenityAnim = useRef(new Animated.Value(0)).current;
@@ -239,6 +290,61 @@ export default function HomeScreen() {
           Basé sur le ton des 30 derniers messages
         </Text>
       </View>
+
+      {/* ─── Prochains RDV médicaux ────────────────────────── */}
+      {medicalEvents.length > 0 && (
+        <>
+          <View style={styles.sectionRow}>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>🏥  Prochains RDV médicaux</Text>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/calendar')}>
+              <Text style={[styles.seeAll, { color: theme.primary }]}>Agenda →</Text>
+            </TouchableOpacity>
+          </View>
+          {medicalEvents.slice(0, 3).map((ev) => {
+            const d = new Date(ev.start_at);
+            const dateStr = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+            const timeStr = ev.all_day
+              ? 'Toute la journée'
+              : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+            return (
+              <TouchableOpacity
+                key={ev.id}
+                style={[styles.medicalCard, { backgroundColor: theme.surface, borderColor: '#FC8181' }]}
+                onPress={() => router.push('/(tabs)/calendar')}
+                activeOpacity={0.8}
+              >
+                <View style={styles.medicalIconBg}>
+                  <Text style={{ fontSize: 22 }}>🏥</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.medicalTitle, { color: theme.text }]}>{ev.title}</Text>
+                  <Text style={[styles.medicalMeta, { color: theme.textSecondary }]}>
+                    {dateStr} · {timeStr}
+                  </Text>
+                  <Text style={[styles.medicalMeta, { color: theme.textSecondary }]}>
+                    👤 {ev.creator_first_name}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={theme.textSecondary} />
+              </TouchableOpacity>
+            );
+          })}
+        </>
+      )}
+      {!loadingMedical && medicalEvents.length === 0 && familyId && (
+        <TouchableOpacity
+          style={[styles.medicalEmpty, { borderColor: theme.border }]}
+          onPress={() => router.push('/(tabs)/calendar')}
+          activeOpacity={0.7}
+        >
+          <Text style={{ fontSize: 20 }}>🏥</Text>
+          <Text style={[styles.medicalEmptyText, { color: theme.textSecondary }]}>
+            Aucun rendez-vous médical à venir
+          </Text>
+          <Ionicons name="add-circle-outline" size={18} color={theme.primary} />
+          <Text style={[styles.medicalEmptyAction, { color: theme.primary }]}>Ajouter</Text>
+        </TouchableOpacity>
+      )}
 
       {/* ─── Notifications récentes ────────────────────────── */}
       <View style={styles.sectionRow}>
@@ -400,4 +506,27 @@ const styles = StyleSheet.create({
   notifCardTime:   { fontSize: 11, marginLeft: 8 },
   notifCardBody:   { fontSize: 13, lineHeight: 18 },
   unreadDot: { width: 8, height: 8, borderRadius: 4 },
+
+  // ── RDV médicaux
+  medicalCard: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 14, borderRadius: 12, borderWidth: 1, borderLeftWidth: 4,
+    ...Platform.select({
+      ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.04, shadowRadius: 2 },
+      android: { elevation: 1 },
+    }),
+  },
+  medicalIconBg: {
+    width: 42, height: 42, borderRadius: 12,
+    backgroundColor: '#FC818122',
+    justifyContent: 'center', alignItems: 'center',
+  },
+  medicalTitle: { fontSize: 14, fontWeight: '700' },
+  medicalMeta:  { fontSize: 12, marginTop: 1 },
+  medicalEmpty: {
+    flexDirection: 'row', alignItems: 'center', gap: 8,
+    padding: 14, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed',
+  },
+  medicalEmptyText:   { fontSize: 13, flex: 1 },
+  medicalEmptyAction: { fontSize: 13, fontWeight: '700' },
 });
