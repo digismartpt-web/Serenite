@@ -38,7 +38,7 @@ const IdentitySchema = z.object({
     .transform((v) => v.toLowerCase().trim()),
   phone: z
     .string({ required_error: 'Téléphone requis' })
-    .regex(/^\+\d{7,15}$/, 'Format international : +33612345678'),
+    .regex(/^[+]?\\d{7,15}$/, 'Format : +336****5678 ou 0612345678'),
   address: z.string().max(500).trim().optional(),
   birthDate: z
     .date({ required_error: 'Date de naissance requise' })
@@ -231,7 +231,7 @@ export default function Step2Screen() {
                 onBlur={onBlur}
                 placeholder="+33 6 12 34 56 78"
                 placeholderTextColor="#A0AEC0"
-                keyboardType="phone-pad"
+                keyboardType="phone-pad" inputMode="tel"
                 returnKeyType="next"
                 accessibilityLabel="Numéro de téléphone"
               />
@@ -290,7 +290,24 @@ export default function Step2Screen() {
                   )}
                 </TouchableOpacity>
 
-                {showDatePicker && (
+                {Platform.OS === 'web' ? (
+                  <input
+                    type="date"
+                    value={value instanceof Date && !isNaN(value.getTime())
+                      ? value.toISOString().split('T')[0]
+                      : ''}
+                    onChange={(e) => {
+                      const d = e.target.value ? new Date(e.target.value + 'T12:00:00') : new Date();
+                      if (!isNaN(d.getTime())) onChange(d);
+                    }}
+                    style={{
+                      width: '100%', padding: '12px 16px', fontSize: 16,
+                      border: '1px solid ' + (errors?.birthDate ? '#E53E3E' : '#CBD5E0'),
+                      borderRadius: 8, background: '#fff', color: '#1A202C',
+                      fontFamily: 'inherit', marginTop: 8,
+                    }}
+                  />
+                ) : showDatePicker && (
                   <DateTimePicker
                     value={value ?? new Date(1990, 0, 1)}
                     mode="date"
