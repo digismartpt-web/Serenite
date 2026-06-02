@@ -3,7 +3,6 @@
     "name": "Sérénité",
     "slug": "serenite",
     "version": "1.0.0",
-    "scheme": "serenite",
     "platforms": [
       "ios",
       "android",
@@ -49,12 +48,14 @@
     },
     "ios": {
       "bundleIdentifier": "app.serenite",
+      "scheme": "serenite",
       "associatedDomains": [
         "applinks:serenite.app"
       ]
     },
     "android": {
       "package": "app.serenite",
+      "scheme": "serenite",
       "intentFilters": [
         {
           "action": "VIEW",
