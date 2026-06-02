@@ -2,7 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Platform } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { Ionicons }         from '@expo/vector-icons';
-import * as SecureStore      from 'expo-secure-store';
+const SecureStore = typeof window !== 'undefined' && window.localStorage
+  ? { getItemAsync: async (k) => { try { return localStorage.getItem(k) } catch(e) { return null } } }
+  : require('expo-secure-store');
 
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
 
