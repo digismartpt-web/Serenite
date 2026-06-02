@@ -3,7 +3,7 @@
 // Importez depuis ce fichier — ne dupliquez jamais process.env dans les composants.
 
 export const API_URL =
-  process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+  process.env.EXPO_PUBLIC_API_URL || 'http://72.62.25.52:3000';
 
 export const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001';
 
