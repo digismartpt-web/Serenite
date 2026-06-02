@@ -14,11 +14,17 @@ dist/
 web-build/
 .expo/
 .expo-shared/
-android/app/build/
-android/.gradle/
 *.apk
 *.aab
 *.jks
+*.keystore
+android/app/build/
+android/.gradle/
+android/app/build/
+
+# ─── OS
+.DS_Store
+Thumbs.db
 
 # ─── IDE
 .idea/
