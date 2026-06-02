@@ -162,6 +162,7 @@ export default function MessagesScreen() {
 
   const [messages,   setMessages]   = useState<Message[]>([]);
   const [familyId,   setFamilyId]   = useState<string | null>(null);
+  const [coparent,   setCoparent]   = useState<string | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
@@ -183,7 +184,15 @@ export default function MessagesScreen() {
         if (famRes.ok) {
           const famData = await famRes.json();
           fid = famData.family?.id ?? null;
-          if (fid) setFamilyId(fid);
+          if (fid) {
+            setFamilyId(fid);
+            // Récupérer le prénom du coparent
+            const f = famData.family;
+            const otherName = f.parent_a_id === user?.id
+              ? famData.parentB?.first_name ?? null
+              : famData.parentA?.first_name ?? null;
+            setCoparent(otherName);
+          }
         }
       }
 
@@ -250,7 +259,7 @@ export default function MessagesScreen() {
       {/* ─ Header ─ */}
       <View style={[styles.header, { backgroundColor: theme.headerBg, paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerTitle}>Messages</Text>
+          <Text style={[styles.headerTitle, { color: theme.headerText }]}>{coparent ?? 'Messages'}</Text>
           {messages.filter((m) => !m.read_at && m.sender_id !== user?.id).length > 0 && (
             <View style={styles.headerBadge}>
               <Text style={styles.headerBadgeText}>

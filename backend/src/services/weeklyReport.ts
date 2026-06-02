@@ -28,11 +28,11 @@ export async function generateWeeklyReport(
 
   const monday = new Date(now);
   monday.setDate(now.getDate() + mondayOffset);
-  monday.setHours(0, 0, 0, 0);
+  monday.setUTCHours(0, 0, 0, 0);
 
   const sunday = new Date(monday);
   sunday.setDate(monday.getDate() + 6);
-  sunday.setHours(23, 59, 59, 999);
+  sunday.setUTCHours(23, 59, 59, 999);
 
   const weekStart = monday.toISOString();
   const weekEnd   = sunday.toISOString();

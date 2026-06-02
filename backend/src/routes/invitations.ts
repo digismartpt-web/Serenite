@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import { v4 as uuidv4 } from 'uuid';
 import { requireAuth, AuthRequest } from '../middleware/auth';
-import { query, queryOne } from '../db';
+import { query, queryOne, withTransaction } from '../lib/database';
 import { sendPushNotification } from '../utils/notifications';
 
 const router = Router();
@@ -39,7 +39,7 @@ router.post('/create', requireAuth, async (req: AuthRequest, res: Response) => {
       [userId]
     );
 
-    // Récupérer ou créer la famille
+    // Récupérer ou créer la famille (dans une transaction pour éviter TOCTOU)
     let family = await queryOne<{ id: string }>(
       `SELECT id FROM families WHERE parent_a_id = $1`,
       [userId]
@@ -50,10 +50,21 @@ router.post('/create', requireAuth, async (req: AuthRequest, res: Response) => {
         `SELECT first_name FROM users WHERE id = $1`,
         [userId]
       );
-      family = await queryOne<{ id: string }>(
-        `INSERT INTO families (parent_a_id, name) VALUES ($1, $2) RETURNING id`,
-        [userId, `Famille ${user?.first_name ?? ''}`]
-      );
+      family = await withTransaction(async (client) => {
+        // Vérifier à nouveau dans la transaction (SELECT FOR UPDATE)
+        const existing = await client.query<{ id: string }>(
+          `SELECT id FROM families WHERE parent_a_id = $1 FOR UPDATE`,
+          [userId]
+        );
+        if (existing.rows.length > 0) {
+          return existing.rows[0];
+        }
+        const row = await client.query<{ id: string }>(
+          `INSERT INTO families (parent_a_id, name) VALUES ($1, $2) RETURNING id`,
+          [userId, `Famille ${user?.first_name ?? ''}`]
+        );
+        return row.rows[0];
+      });
     }
 
     const familyId = family!.id;
@@ -107,96 +118,120 @@ router.post('/accept', requireAuth, async (req: AuthRequest, res: Response) => {
   }
 
   try {
-    // Rechercher l'invitation
-    const invitation = await queryOne<{
-      id: string;
-      family_id: string;
-      inviter_id: string;
-      status: string;
-      expires_at: string;
-      code: string;
-    }>(
-      `SELECT i.*, i.expires_at
-       FROM invitations i
-       WHERE ${code ? 'i.code = $1' : 'i.token = $1'}
-         AND i.status = 'pending'`,
-      [code ?? token]
-    );
-
-    if (!invitation) {
-      res.status(404).json({ error: 'Invitation introuvable ou déjà utilisée' });
-      return;
-    }
-
-    // Vérifier l'expiration
-    // Pour un code : fenêtre de 24h (on calcule depuis created_at si besoin)
-    if (new Date(invitation.expires_at) < new Date()) {
-      await query(
-        `UPDATE invitations SET status = 'expired' WHERE id = $1`,
-        [invitation.id]
+    // Tout faire dans une transaction atomique pour éviter TOCTOU
+    const result = await withTransaction(async (client) => {
+      // Rechercher l'invitation avec verrouillage (SELECT FOR UPDATE)
+      const invResult = await client.query<{
+        id: string;
+        family_id: string;
+        inviter_id: string;
+        status: string;
+        expires_at: string;
+        code: string;
+      }>(
+        `SELECT i.*, i.expires_at
+         FROM invitations i
+         WHERE ${code ? 'i.code = $1' : 'i.token = $1'}
+           AND i.status = 'pending'
+         FOR UPDATE`,
+        [code ?? token]
       );
-      res.status(410).json({ error: 'Invitation expirée' });
-      return;
+
+      const invitation = invResult.rows[0] ?? null;
+
+      if (!invitation) {
+        return { status: 404, json: { error: 'Invitation introuvable ou déjà utilisée' } };
+      }
+
+      // Vérifier l'expiration
+      if (new Date(invitation.expires_at) < new Date()) {
+        await client.query(
+          `UPDATE invitations SET status = 'expired' WHERE id = $1`,
+          [invitation.id]
+        );
+        return { status: 410, json: { error: 'Invitation expirée' } };
+      }
+
+      // Vérifier que l'accepteur n'est pas l'invitant
+      if (invitation.inviter_id === userId) {
+        return { status: 400, json: { error: 'Vous ne pouvez pas rejoindre votre propre famille' } };
+      }
+
+      // Lier le coparent à la famille (atomique grâce à FOR UPDATE)
+      const updateResult = await client.query(
+        `UPDATE families SET parent_b_id = $1 WHERE id = $2 AND parent_b_id IS NULL`,
+        [userId, invitation.family_id]
+      );
+
+      if (updateResult.rowCount === 0) {
+        // parent_b_id déjà défini (race condition ou invitation déjà utilisée)
+        return { status: 409, json: { error: 'Cette famille a déjà un coparent' } };
+      }
+
+      // Mettre à jour l'invitation
+      await client.query(
+        `UPDATE invitations
+         SET status = 'accepted', accepted_by = $1, accepted_at = NOW()
+         WHERE id = $2`,
+        [userId, invitation.id]
+      );
+
+      // Récupérer les données de la famille et des enfants
+      const familyRows = await client.query<{
+        id: string; name: string;
+        parent_a_id: string; parent_b_id: string;
+      }>(
+        `SELECT id, name, parent_a_id, parent_b_id FROM families WHERE id = $1`,
+        [invitation.family_id]
+      );
+      const family = familyRows.rows[0];
+
+      const childrenRows = await client.query<{
+        id: string; first_name: string; birth_date: string;
+        age: number; calendar_color: string; calendar_color_text: string;
+      }>(
+        `SELECT id, first_name, birth_date, age, calendar_color, calendar_color_text
+         FROM family_children WHERE family_id = $1 ORDER BY birth_date`,
+        [invitation.family_id]
+      );
+      const children = childrenRows.rows;
+
+      // Notifier le parent A (après commit, pas bloquant)
+      const parentARows = await client.query<{
+        push_token: string | null; first_name: string;
+      }>(
+        `SELECT push_token, first_name FROM users WHERE id = $1`,
+        [invitation.inviter_id]
+      );
+      const parentA = parentARows.rows[0] ?? null;
+
+      const joinerRows = await client.query<{ first_name: string }>(
+        `SELECT first_name FROM users WHERE id = $1`,
+        [userId]
+      );
+      const joiner = joinerRows.rows[0] ?? null;
+
+      return {
+        status: 200,
+        json: { family, children },
+        notification: {
+          pushToken: parentA?.push_token,
+          title: 'Famille liée !',
+          body: `${joiner?.first_name ?? 'Votre coparent'} a rejoint Sérénité 🎉`,
+        },
+      };
+    });
+
+    // Notification push (après commit de la transaction)
+    if ('notification' in result && result.notification?.pushToken) {
+      sendPushNotification(
+        result.notification.pushToken,
+        result.notification.title,
+        result.notification.body
+      ).catch(() => { /* notification non critique */ });
     }
 
-    // Vérifier que l'accepteur n'est pas l'invitant
-    if (invitation.inviter_id === userId) {
-      res.status(400).json({ error: 'Vous ne pouvez pas rejoindre votre propre famille' });
-      return;
-    }
-
-    // Lier le coparent à la famille
-    await query(
-      `UPDATE families SET parent_b_id = $1 WHERE id = $2 AND parent_b_id IS NULL`,
-      [userId, invitation.family_id]
-    );
-
-    // Mettre à jour l'invitation
-    await query(
-      `UPDATE invitations
-       SET status = 'accepted', accepted_by = $1, accepted_at = NOW()
-       WHERE id = $2`,
-      [userId, invitation.id]
-    );
-
-    // Récupérer les données de la famille et des enfants
-    const family = await queryOne<{
-      id: string; name: string;
-      parent_a_id: string; parent_b_id: string;
-    }>(
-      `SELECT id, name, parent_a_id, parent_b_id FROM families WHERE id = $1`,
-      [invitation.family_id]
-    );
-
-    const children = await query<{
-      id: string; first_name: string; birth_date: string;
-      age: number; calendar_color: string; calendar_color_text: string;
-    }>(
-      `SELECT id, first_name, birth_date, age, calendar_color, calendar_color_text
-       FROM family_children WHERE family_id = $1 ORDER BY birth_date`,
-      [invitation.family_id]
-    );
-
-    // Notifier le parent A
-    const parentA = await queryOne<{
-      push_token: string | null; first_name: string;
-    }>(
-      `SELECT push_token, first_name FROM users WHERE id = $1`,
-      [invitation.inviter_id]
-    );
-
-    const joiner = await queryOne<{ first_name: string }>(
-      `SELECT first_name FROM users WHERE id = $1`,
-      [userId]
-    );
-
-    await sendPushNotification(
-      parentA?.push_token,
-      'Famille liée !',
-      `${joiner?.first_name ?? 'Votre coparent'} a rejoint Sérénité 🎉`
-    );
-
-    res.json({ family, children });
+    res.status(result.status).json(result.json);
   } catch (err) {
     console.error('POST /invitations/accept:', err);
     res.status(500).json({ error: 'Erreur serveur' });

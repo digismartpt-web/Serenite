@@ -229,7 +229,9 @@ router.delete(
       return;
     }
 
-    await query(`DELETE FROM events WHERE id = $1`, [eventId]);
+    // Supprimer d'abord les entrées liées dans event_children
+    await query('DELETE FROM event_children WHERE event_id = $1', [eventId]);
+    await query('DELETE FROM events WHERE id = $1', [eventId]);
     res.status(204).send();
   }
 );
@@ -262,7 +264,7 @@ router.post(
       return;
     }
 
-    const event = await queryOne<{ id: string }>(`SELECT id FROM events WHERE id = $1`, [eventId]);
+    const event = await queryOne<{ id: string }>(`SELECT id FROM events WHERE id = $1 AND family_id = $2`, [eventId, familyId]);
     if (!event) { res.status(404).json({ error: 'Événement introuvable' }); return; }
 
     const row = await query(

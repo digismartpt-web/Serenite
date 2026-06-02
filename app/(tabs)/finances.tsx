@@ -334,9 +334,9 @@ export default function FinancesScreen() {
         if (!f) return;
         setFamilyId(f.id);
         const otherName = f.parent_a_id === user?.id
-          ? d.parent_b_first_name
-          : d.parent_a_first_name;
-        setCoparent(otherName ?? null);
+          ? (d.parentB?.first_name) ?? null
+          : (d.parentA?.first_name) ?? null;
+        setCoparent(otherName);
       })
       .catch(() => {});
   }, [token]);

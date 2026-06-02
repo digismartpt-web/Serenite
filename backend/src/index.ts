@@ -4,6 +4,7 @@ import 'dotenv/config';
 import express, { Request, Response, NextFunction } from 'express';
 import helmet  from 'helmet';
 import cors    from 'cors';
+import rateLimit from 'express-rate-limit';
 
 import { checkConnection } from './lib/database';
 import authRouter        from './routes/auth';
@@ -41,19 +42,73 @@ if ((process.env.JWT_SECRET ?? '').length < 32) {
   process.exit(1);
 }
 
+// Vérifier que JWT_SECRET n'est pas la valeur par défaut du .env.example
+if (process.env.JWT_SECRET && process.env.JWT_SECRET.startsWith('CHANGE_ME')) {
+  console.error('[SECURITY] JWT_SECRET still has default value! Change it in .env');
+  process.exit(1);
+}
+
 // ─── Application Express ──────────────────────────────────────
 
 const app  = express();
 const PORT = parseInt(process.env.PORT ?? '3000', 10);
 const IS_PROD = process.env.NODE_ENV === 'production';
 
+// ── Rate Limiting ─────────────────────────────────────────────
+
+const globalLimiter = rateLimit({
+  windowMs: 60 * 1000,  // 1 minute
+  max: 100,              // max 100 requêtes par minute
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de requêtes. Réessayez dans une minute.' },
+});
+
+const registerLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 3,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de tentatives d\'inscription. Réessayez plus tard.' },
+});
+
+const deepseekLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de requêtes au service IA. Réessayez dans une minute.' },
+});
+
+const voiceLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Trop de requêtes vocales. Réessayez dans une minute.' },
+});
+
+app.use(globalLimiter);
+
 // ── Sécurité : Helmet ────────────────────────────────────────
 // Sur Coolify, le TLS est géré par Traefik (reverse-proxy).
 // Helmet sécurise les headers HTTP sans configuration HTTPS côté Node.
 app.use(
   helmet({
-    contentSecurityPolicy: IS_PROD ? undefined : false, // désactivé en dev pour le playground
-    crossOriginEmbedderPolicy: false,                   // compatible avec les deep links mobiles
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc:  ["'self'"],
+        styleSrc:   ["'self'", "'unsafe-inline'"],
+        imgSrc:     ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        fontSrc:    ["'self'"],
+        objectSrc:  ["'none'"],
+        frameSrc:   ["'none'"],
+        upgradeInsecureRequests: IS_PROD ? [] : null,
+      },
+    },
+    crossOriginEmbedderPolicy: false,  // compatible avec les deep links mobiles
     hsts: IS_PROD
       ? { maxAge: 31536000, includeSubDomains: true }
       : false,
@@ -64,6 +119,12 @@ app.use(
 const allowedOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
   : [];
+
+// En production, CORS_ORIGIN doit être défini
+if (IS_PROD && allowedOrigins.length === 0) {
+  console.error('[FATAL] CORS_ORIGIN doit être défini en production');
+  process.exit(1);
+}
 
 app.use(
   cors({
@@ -89,7 +150,12 @@ app.use(express.json({ limit: '100kb' })); // Limite raisonnable pour l'API
 app.use(express.urlencoded({ extended: false }));
 
 // ── Sécurité : ne jamais exposer la stack en production ───────
-app.set('trust proxy', 1); // Nécessaire pour req.ip derrière Traefik/Coolify
+app.set('trust proxy', 'loopback,linklocal,uniquelocal'); // Nécessaire pour req.ip derrière Traefik/Coolify (plusieurs couches de proxy)
+
+// ─── Rate limiters spécifiques ─────────────────────────────────
+app.use('/api/auth/register', registerLimiter);
+app.use('/api/messages/reformulate', deepseekLimiter);
+app.use('/api/voice', voiceLimiter);
 
 // ─── Routes ───────────────────────────────────────────────────
 

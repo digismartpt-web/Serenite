@@ -1,7 +1,11 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { execSync } from 'child_process';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 import path          from 'path';
 
+const execAsync = promisify(exec);
+
+import { query } from '../lib/database';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -38,17 +42,16 @@ router.get(
     try {
       const scriptPath = path.resolve(__dirname, '../../scripts/backup-db.sh');
 
-      const output = execSync(`bash "${scriptPath}"`, {
-        encoding: 'utf-8',
+      const { stdout } = await execAsync(`bash "${scriptPath}"`, {
         timeout: 120_000, // 2 minutes max pour un backup
         env: {
-          ...process.env,
-          // S'assurer que les vars DB sont passées
           DATABASE_URL: process.env.DATABASE_URL ?? '',
+          NODE_ENV: process.env.NODE_ENV ?? 'production',
+          PATH: process.env.PATH,
         },
       });
 
-      const lines = output.trim().split('\n');
+      const lines = stdout.trim().split('\n');
       const lastLine = lines[lines.length - 1];
 
       res.json({
@@ -61,6 +64,37 @@ router.get(
       const message = err instanceof Error ? err.message : 'Erreur inconnue';
       console.error('[admin/backup-db] Erreur :', message);
       res.status(500).json({ error: 'Échec du backup', details: message });
+    }
+  }
+);
+
+
+// ─── POST /api/admin/cleanup-invitations ───────────────────────
+// Nettoie les invitations expirées (marque comme 'expired' les invitations
+// dont la date d'expiration est dépassée)
+
+router.post(
+  '/cleanup-invitations',
+  requireAuth,
+  requireAdmin,
+  async (_req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      const result = await query(
+        `UPDATE invitations
+         SET status = 'expired'
+         WHERE status = 'pending' AND expires_at < NOW()
+         RETURNING id`,
+      );
+
+      res.json({
+        success: true,
+        cleanedCount: result.length,
+        message: `${result.length} invitation(s) expirée(s) nettoyée(s)`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur inconnue';
+      console.error('[admin/cleanup-invitations] Erreur :', message);
+      res.status(500).json({ error: 'Échec du nettoyage', details: message });
     }
   }
 );

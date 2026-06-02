@@ -16,6 +16,7 @@ import * as Clipboard from 'expo-clipboard';
 import QRCode from 'react-native-qrcode-svg';
 
 import InviteCodeDisplay from '../../components/invite/InviteCodeDisplay';
+import { useAuth } from '../hooks/useAuth';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const POLL_INTERVAL_MS = 5000;
@@ -55,14 +56,9 @@ async function fetchStatus(token: string): Promise<InvitationStatus> {
   return res.json();
 }
 
-// TODO: remplacer par votre hook d'auth (ex: useAuth)
-function useAuthToken(): string {
-  return (global as any).__devAuthToken ?? '';
-}
-
 export default function SendInviteScreen() {
   const router = useRouter();
-  const authToken = useAuthToken();
+  const { token: authToken } = useAuth();
 
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
   const [loading,    setLoading]    = useState(true);

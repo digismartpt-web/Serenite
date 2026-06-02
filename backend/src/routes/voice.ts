@@ -2,30 +2,51 @@ import { Router, Response } from 'express';
 import { z }                from 'zod';
 import axios                from 'axios';
 import multer               from 'multer';
+import FormData             from 'form-data';
 
 import { requireAuth, AuthRequest } from '../middleware/auth';
+import { DEEPSEEK_API_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, CNV_SYSTEM_PROMPT } from '../services/ai/deepseekClient';
 
 const router  = Router();
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
-// ─── Client DeepSeek (API compatible OpenAI) ──────────────────
-const DEEPSEEK_API_URL  = process.env.DEEPSEEK_API_URL  || 'https://api.deepseek.com/v1';
-const DEEPSEEK_API_KEY  = process.env.DEEPSEEK_API_KEY  || '';
-const DEEPSEEK_MODEL    = process.env.DEEPSEEK_MODEL    || 'deepseek-v4-flash';
-
-// ─── Prompt CNV (identique à messages.ts) ─────────────────────
-const CNV_SYSTEM_PROMPT =
-  'Tu es un médiateur familial expert en Communication Non-Violente. ' +
-  'Reformule ce message en supprimant toute agressivité, reproche, sarcasme et jugement de valeur. ' +
-  'Conserve exactement les faits (dates, heures, lieux, montants, noms). ' +
-  "N'ajoute aucune information nouvelle. " +
-  'Ton purement factuel et orienté organisation. ' +
-  'Si le message contient une question, conserve-la. ' +
-  'Réponds UNIQUEMENT avec la reformulation, sans commentaire.';
-
 // ─── POST /api/voice/transcribe ────────────────────────────────
 // Reçoit un fichier audio (multipart/form-data) et le transmet à
 // l'API Whisper de DeepSeek pour transcription.
+
+const ALLOWED_AUDIO_MIMES = [
+  'audio/wav',
+  'audio/mpeg',
+  'audio/mp3',
+  'audio/ogg',
+  'audio/webm',
+  'audio/flac',
+  'audio/x-wav',
+  'audio/x-m4a',
+  'audio/mp4',
+  'video/mp4',       // Whisper accepte aussi la vidéo
+];
+
+const AUDIO_MAGIC_BYTES: Record<string, Uint8Array> = {
+  'RIFF': new Uint8Array([0x52, 0x49, 0x46, 0x46]),  // WAV
+  'OggS': new Uint8Array([0x4F, 0x67, 0x67, 0x53]),  // OGG
+  'ftyp': new Uint8Array([0x66, 0x74, 0x79, 0x70]),  // MP4/M4A
+  'ID3':  new Uint8Array([0x49, 0x44, 0x33]),        // MP3
+};
+
+function isValidAudioMime(mime: string): boolean {
+  return ALLOWED_AUDIO_MIMES.includes(mime);
+}
+
+function hasAudioMagicBytes(buffer: Uint8Array): boolean {
+  const header = buffer.slice(0, 8);
+  for (const magic of Object.values(AUDIO_MAGIC_BYTES)) {
+    if (header.subarray(0, magic.length).every((b, i) => b === magic[i])) {
+      return true;
+    }
+  }
+  return false;
+}
 
 router.post(
   '/transcribe',
@@ -37,10 +58,22 @@ router.post(
       return;
     }
 
+    // Validation du MIME type
+    if (!isValidAudioMime(req.file.mimetype)) {
+      res.status(400).json({ error: 'Format audio non supporté. Formats acceptés : WAV, MP3, OGG, WEBM, FLAC, M4A' });
+      return;
+    }
+
+    // Validation des magic bytes
+    const uint8 = new Uint8Array(req.file.buffer);
+    if (!hasAudioMagicBytes(uint8)) {
+      res.status(400).json({ error: 'Le fichier ne semble pas être un fichier audio valide' });
+      return;
+    }
+
     try {
       // Créer un FormData pour le forward vers DeepSeek Whisper
       const formData = new FormData();
-      const uint8 = new Uint8Array(req.file.buffer);
       const blob = new Blob([uint8], { type: req.file.mimetype });
       formData.append('file', blob, req.file.originalname || 'audio.wav');
       formData.append('model', 'whisper-1');
@@ -53,7 +86,6 @@ router.post(
         {
           headers: {
             'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
-            ...(formData as any).getHeaders?.(),
           },
           timeout: 30_000,
           maxBodyLength: 30 * 1024 * 1024,
@@ -68,8 +100,7 @@ router.post(
 
       res.json({ transcribedText });
     } catch (err) {
-      const message = (err as Error).message;
-      console.error('[voice/transcribe] Erreur API DeepSeek Whisper :', message);
+      console.error('[voice/transcribe] Erreur API DeepSeek Whisper (status:', (err as any)?.response?.status ?? 'inconnu', ')');
       res.status(502).json({ error: 'Service de transcription temporairement indisponible' });
     }
   }
@@ -118,7 +149,7 @@ router.post(
 
       res.json({ reformulatedText });
     } catch (err) {
-      console.error('[voice/reformulate] Erreur API DeepSeek :', (err as Error).message);
+      console.error('[voice/reformulate] Erreur API DeepSeek (status:', (err as any)?.response?.status ?? 'inconnu', ')');
       res.status(502).json({ error: 'Service de reformulation temporairement indisponible' });
     }
   }

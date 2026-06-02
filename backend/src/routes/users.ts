@@ -19,7 +19,7 @@ router.get(
       `SELECT id, email, first_name, last_name, phone, address,
               birth_date, parent_type, status, children_count,
               language, email_verified, created_at, updated_at,
-              notification_token
+              -- notification_token retiré de l'export RGPD
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -114,6 +114,49 @@ router.get(
       families,
       children,
     });
+  }
+);
+
+
+// ─── POST /api/users/update-push-token ─────────────────────────
+// Met à jour le push token de l'utilisateur
+
+router.post(
+  '/update-push-token',
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const { pushToken } = req.body as { pushToken?: string };
+    const userId = req.user!.id;
+
+    if (!pushToken || typeof pushToken !== 'string') {
+      res.status(400).json({ error: 'pushToken requis' });
+      return;
+    }
+
+    await query(
+      `UPDATE users SET push_token = $1, updated_at = NOW() WHERE id = $2`,
+      [pushToken, userId]
+    );
+
+    res.json({ success: true });
+  }
+);
+
+// ─── DELETE /api/users/push-token ──────────────────────────────
+// Supprime le push token (quand expiré ou désinscrit)
+
+router.delete(
+  '/push-token',
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+
+    await query(
+      `UPDATE users SET push_token = NULL, updated_at = NOW() WHERE id = $1`,
+      [userId]
+    );
+
+    res.json({ success: true });
   }
 );
 

@@ -12,7 +12,7 @@ const pool = new Pool({
   options:                '-c search_path=sereno',
   ssl:
     process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: false }
+      ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
       : false,
   // Pool sizing
   max:                    parseInt(process.env.DB_POOL_MAX ?? '20', 10),

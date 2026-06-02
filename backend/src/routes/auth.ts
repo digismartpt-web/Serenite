@@ -11,7 +11,7 @@ import { UserRow, toPublicUser } from '../types';
 
 const router = Router();
 
-const BCRYPT_ROUNDS = 12;
+const BCRYPT_ROUNDS = 14;
 
 // ─── Schémas Zod ──────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ const RegisterSchema = z.object({
 
 const LoginSchema = z.object({
   email: z.string().email().transform((v) => v.toLowerCase().trim()),
-  pin:   z.string().length(4).regex(/^\d{4}$/),
+  pin:   z.string().length(6).regex(/^\d{6}$/),
 });
 
 const VerifyEmailSchema = z.object({
@@ -135,9 +135,12 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     // Générer le token de vérification email et l'envoyer
     const verifyToken = signVerifyEmailToken(user.id, user.email);
     // Ne pas await pour ne pas bloquer la réponse
-    sendEmailVerification(user.email, user.first_name, verifyToken).catch((err) =>
-      console.error('[AUTH] Échec envoi email vérification :', err.message)
-    );
+    sendEmailVerification(user.email, user.first_name, verifyToken).catch((err) => {
+      console.error('[AUTH] Échec envoi email vérification :', err.message);
+      if (process.env.NODE_ENV === 'production') {
+        console.warn('[AUTH] SMTP non configuré ? L\'utilisateur devra contacter le support pour vérifier son email.');
+      }
+    });
 
     // Générer le JWT d'auth (30 jours)
     const token = signAuthToken({ userId: user.id, email: user.email, role: user.role });
@@ -174,14 +177,13 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
   try {
     const user = await queryOne<UserRow>(
-      'SELECT * FROM users WHERE email = $1',
+      'SELECT id, first_name, last_name, email, phone, address, birth_date, age, role, parent_type, status, children_count, pin_hash, push_token, onboarding_completed, language, theme_id, calendar_color, calendar_color_text, email_verified, created_at, updated_at FROM users WHERE email = $1',
       [email]
     );
-
     // Délai constant pour éviter le timing attack
     // (comparer même si l'utilisateur n'existe pas)
-    const dummyHash = '$2b$12$invalidhashfortimingnnnnnnnnnnnnnnnnnnnnnnnnnnnnn';
-    const hashToCompare = user?.pin_hash ?? dummyHash;
+    const DUMMY_HASH = bcrypt.hashSync('dummy-pin-placeholder', BCRYPT_ROUNDS);
+    const hashToCompare = user?.pin_hash ?? DUMMY_HASH;
 
     const valid = await bcrypt.compare(pin, hashToCompare);
 
@@ -248,12 +250,60 @@ router.post('/verify-email', async (req: Request, res: Response): Promise<void> 
   }
 });
 
+
+// ─── POST /api/auth/resend-verification ───────────────────────
+
+const ResendVerificationSchema = z.object({
+  email: z.string().email('Email invalide').transform((v) => v.toLowerCase().trim()),
+});
+
+router.post('/resend-verification', async (req: Request, res: Response): Promise<void> => {
+  const parsed = ResendVerificationSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Email invalide' });
+    return;
+  }
+
+  const { email } = parsed.data;
+
+  try {
+    const user = await queryOne<UserRow>(
+      'SELECT id, first_name, last_name, email, role, email_verified, created_at, updated_at FROM users WHERE email = $1',
+      [email]
+    );
+
+    if (!user) {
+      // Ne pas révéler si l'email existe ou pas (sécurité)
+      res.json({ success: true, message: 'Si cet email existe, un nouveau lien de vérification a été envoyé.' });
+      return;
+    }
+
+    if (user.email_verified) {
+      res.json({ success: true, message: 'Cet email est déjà vérifié.' });
+      return;
+    }
+
+    // Générer un nouveau token et l'envoyer
+    const verifyToken = signVerifyEmailToken(user.id, user.email);
+    sendEmailVerification(user.email, user.first_name, verifyToken).catch((err) =>
+      console.error('[AUTH] Échec envoi email vérification :', err.message)
+    );
+
+    res.json({ success: true, message: 'Si cet email existe, un nouveau lien de vérification a été envoyé.' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erreur inconnue';
+    console.error('[AUTH] resend-verification :', message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
 // ─── GET /api/auth/me ─────────────────────────────────────────
+
 
 router.get('/me', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = await queryOne<UserRow>(
-      'SELECT * FROM users WHERE id = $1',
+      'SELECT id, first_name, last_name, email, phone, address, birth_date, age, role, parent_type, status, children_count, push_token, onboarding_completed, language, theme_id, calendar_color, calendar_color_text, email_verified, created_at, updated_at FROM users WHERE id = $1',
       [req.user!.id]
     );
 

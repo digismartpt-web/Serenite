@@ -6,23 +6,9 @@ import { z }                   from 'zod';
 import { query, queryOne, withTransaction } from '../lib/database';
 import { requireAuth, AuthRequest }         from '../middleware/auth';
 import { sendPushNotification }             from '../utils/notifications';
+import { DEEPSEEK_API_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, CNV_SYSTEM_PROMPT } from '../services/ai/deepseekClient';
 
 const router = Router();
-
-// ─── Client DeepSeek (API compatible OpenAI) ──────────────────
-const DEEPSEEK_API_URL  = process.env.DEEPSEEK_API_URL  || 'https://api.deepseek.com/v1';
-const DEEPSEEK_API_KEY  = process.env.DEEPSEEK_API_KEY  || '';
-const DEEPSEEK_MODEL    = process.env.DEEPSEEK_MODEL    || 'deepseek-v4-flash';
-
-// ─── Prompt CNV ───────────────────────────────────────────────
-const CNV_SYSTEM_PROMPT =
-  'Tu es un médiateur familial expert en Communication Non-Violente. ' +
-  'Reformule ce message en supprimant toute agressivité, reproche, sarcasme et jugement de valeur. ' +
-  'Conserve exactement les faits (dates, heures, lieux, montants, noms). ' +
-  "N'ajoute aucune information nouvelle. " +
-  'Ton purement factuel et orienté organisation. ' +
-  'Si le message contient une question, conserve-la. ' +
-  'Réponds UNIQUEMENT avec la reformulation, sans commentaire.';
 
 // ─── Score d'agressivité ──────────────────────────────────────
 // Algorithme léger, côté serveur (pas d'appel LLM supplémentaire)
@@ -135,7 +121,7 @@ router.post(
 
       reformulatedContent = dsResponse.data.choices[0].message.content.trim();
     } catch (err) {
-      console.error('[messages/reformulate] Erreur API DeepSeek :', (err as Error).message);
+      console.error('[messages/reformulate] Erreur API DeepSeek (status:', (err as any)?.response?.status ?? 'inconnu', ')');
       res.status(502).json({ error: 'Service de reformulation temporairement indisponible' });
       return;
     }
@@ -245,10 +231,15 @@ router.post(
         `SELECT push_token, first_name FROM users WHERE id = $1`,
         [otherParentId]
       );
+      // Récupérer le prénom de l'expéditeur depuis la DB (pas dans le JWT)
+      const sender = await queryOne<{ first_name: string }>(
+        'SELECT first_name FROM users WHERE id = $1',
+        [userId]
+      );
       if (otherParent?.push_token) {
         await sendPushNotification(
           otherParent.push_token,
-          `Nouveau message de ${(req.user as any).firstName ?? 'votre coparent'}`,
+          `Nouveau message de ${sender?.first_name ?? 'votre coparent'}`,
           content.slice(0, 100) + (content.length > 100 ? '…' : ''),
           { screen: 'messages', familyId }
         ).catch(() => { /* notification non critique */ });
@@ -303,13 +294,8 @@ router.get(
       before ? [familyId, limit, before] : [familyId, limit]
     );
 
-    // Marquer comme lus les messages de l'autre parent
-    await query(
-      `UPDATE messages
-       SET read_at = NOW()
-       WHERE family_id = $1 AND sender_id != $2 AND read_at IS NULL`,
-      [familyId, userId]
-    );
+    // Les messages ne sont plus marqués comme lus automatiquement ici
+    // Utiliser PUT /api/messages/:familyId/read pour marquer les messages comme lus
 
     res.json({ messages: result.reverse() });
   }
@@ -331,6 +317,39 @@ router.get(
     );
 
     res.json({ unreadCount: parseInt(row?.count ?? '0', 10) });
+  }
+);
+
+
+// ─── PUT /api/messages/:familyId/read ─────────────────────────
+// Marque explicitement les messages de l'autre parent comme lus
+
+router.put(
+  '/:familyId/read',
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const { familyId } = req.params;
+    const userId = req.user!.id;
+
+    // Vérifier l'appartenance à la famille
+    const member = await queryOne<{ id: string }>(
+      `SELECT id FROM families
+       WHERE id = $1 AND (parent_a_id = $2 OR parent_b_id = $2)`,
+      [familyId, userId]
+    );
+    if (!member) {
+      res.status(403).json({ error: 'Accès refusé à cette famille' });
+      return;
+    }
+
+    await query(
+      `UPDATE messages
+       SET read_at = NOW()
+       WHERE family_id = $1 AND sender_id != $2 AND read_at IS NULL`,
+      [familyId, userId]
+    );
+
+    res.json({ success: true });
   }
 );
 

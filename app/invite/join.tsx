@@ -12,19 +12,15 @@ import {
 import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import CodeInput from '../../components/invite/CodeInput';
+import { useAuth } from '../hooks/useAuth';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 type State = 'idle' | 'loading' | 'success' | 'error';
 
-// TODO: remplacer par votre hook d'auth
-function useAuthToken(): string {
-  return (global as any).__devAuthToken ?? '';
-}
-
 export default function JoinScreen() {
   const router     = useRouter();
-  const authToken  = useAuthToken();
+  const { token: authToken } = useAuth();
   // Le token peut être passé via deep link (serenite://join/[token])
   const { token: deepLinkToken } = useLocalSearchParams<{ token?: string }>();
 

@@ -14,6 +14,16 @@ const FROM    = process.env.MAIL_FROM    ?? 'noreply@serenite.app';
 const APP_URL = process.env.APP_URL      ?? 'https://serenite.app';
 const IS_PROD = process.env.NODE_ENV     === 'production';
 
+// ─── Échappement HTML ─────────────────────────────────────────
+/** Échappe les caractères HTML dangereux pour prévenir XSS. */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 // ─── Interface interne ────────────────────────────────────────
 
 interface MailPayload {
@@ -67,7 +77,7 @@ export async function sendEmailVerification(
     subject: 'Vérifiez votre adresse email – Sérénité',
     text: `Bonjour ${firstName},\n\nCliquez sur ce lien pour vérifier votre adresse :\n${url}\n\nCe lien expire dans 1 heure.\n\nL'équipe Sérénité`,
     html: `
-      <p>Bonjour <strong>${firstName}</strong>,</p>
+      <p>Bonjour <strong>${escapeHtml(firstName)}</strong>,</p>
       <p>
         <a href="${url}" style="
           display:inline-block;padding:12px 24px;
@@ -93,7 +103,7 @@ export async function sendPinReset(
     subject: 'Réinitialisation de votre PIN – Sérénité',
     text: `Bonjour ${firstName},\n\nCliquez sur ce lien pour réinitialiser votre PIN :\n${url}\n\nCe lien expire dans 30 minutes.\n\nSi vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\nL'équipe Sérénité`,
     html: `
-      <p>Bonjour <strong>${firstName}</strong>,</p>
+      <p>Bonjour <strong>${escapeHtml(firstName)}</strong>,</p>
       <p>
         <a href="${url}" style="
           display:inline-block;padding:12px 24px;

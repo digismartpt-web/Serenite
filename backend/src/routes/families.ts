@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { requireAuth, AuthRequest } from '../middleware/auth';
-import { query, queryOne } from '../db';
+import { query, queryOne } from '../lib/database';
 
 const router = Router();
 
@@ -131,16 +131,15 @@ router.get('/me', requireAuth, async (req: AuthRequest, res: Response) => {
       return;
     }
 
-    // Récupérer les deux parents
+    // Récupérer les deux parents (sans exposer les emails)
     const parentIds = [family.parent_a_id, family.parent_b_id].filter(Boolean);
     const parents = await query<{
       id: string;
       first_name: string;
       last_name: string;
-      email: string;
       phone: string;
     }>(
-      `SELECT id, first_name, last_name, email, phone
+      `SELECT id, first_name, last_name, phone
        FROM users WHERE id = ANY($1::uuid[])`,
       [parentIds]
     );

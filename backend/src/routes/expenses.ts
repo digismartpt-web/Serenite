@@ -16,7 +16,7 @@ const CATEGORIES = [
 const ExpenseBody = z.object({
   familyId:    z.string().uuid(),
   title:       z.string().min(1).max(200).trim(),
-  amount:      z.number().positive().max(999999.99),
+  amount:      z.number().positive().max(999999.99).multipleOf(0.01),
   category:    z.enum(CATEGORIES).default('autre'),
   expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(() => new Date().toISOString().slice(0, 10)),
   splitRatio:  z.number().min(0).max(1).default(0.5),
@@ -97,41 +97,51 @@ router.get(
     // L'autre doit (amount * (1 - split_ratio)) si payeur = parent_a, ou (amount * split_ratio) si payeur = parent_b.
     // On simplifie : chaque parent doit X % selon split_ratio.
     // balance > 0 → parent_b doit à parent_a ; balance < 0 → parent_a doit à parent_b.
+    // Si parent_b_id est null (mode solo), pas de bilan à calculer
 
-    const balanceResult = await queryOne<{
-      balance_a_to_b: string;  // ce que parent_a doit à parent_b
-      balance_b_to_a: string;  // ce que parent_b doit à parent_a
-    }>(
-      `SELECT
-         COALESCE(SUM(CASE WHEN paid_by = $2
-                           THEN amount * split_ratio          -- parent_b paid, parent_a owes split_ratio
-                           ELSE 0 END), 0) AS balance_a_to_b,
-         COALESCE(SUM(CASE WHEN paid_by = $3
-                           THEN amount * (1 - split_ratio)    -- parent_a paid, parent_b owes (1-split_ratio)
-                           ELSE 0 END), 0) AS balance_b_to_a
-       FROM expenses
-       WHERE family_id = $1`,
-      [familyId, family.parent_b_id, family.parent_a_id]
-    );
+    let balance: { net: number; iOwe: number; theyOwe: number };
+    let otherParentId: string | null;
 
-    const aToB  = parseFloat(balanceResult?.balance_a_to_b ?? '0');
-    const bToA  = parseFloat(balanceResult?.balance_b_to_a ?? '0');
-    const net   = parseFloat((bToA - aToB).toFixed(2)); // > 0 → parent_b owes parent_a
+    if (!family.parent_b_id) {
+      // Mode solo : pas de coparent, bilan nul
+      balance = { net: 0, iOwe: 0, theyOwe: 0 };
+      otherParentId = null;
+    } else {
+      const iAmParentA = family.parent_a_id === userId;
+      otherParentId = iAmParentA ? family.parent_b_id : family.parent_a_id;
 
-    // Qui est l'utilisateur courant ?
-    const iAmParentA = family.parent_a_id === userId;
+      const balanceResult = await queryOne<{
+        balance_a_to_b: string;  // ce que parent_a doit à parent_b
+        balance_b_to_a: string;  // ce que parent_b doit à parent_a
+      }>(
+        `SELECT
+           COALESCE(SUM(CASE WHEN paid_by = $2
+                             THEN amount * split_ratio          -- parent_b paid, parent_a owes split_ratio
+                             ELSE 0 END), 0) AS balance_a_to_b,
+           COALESCE(SUM(CASE WHEN paid_by = $3
+                             THEN amount * (1 - split_ratio)    -- parent_a paid, parent_b owes (1-split_ratio)
+                             ELSE 0 END), 0) AS balance_b_to_a
+         FROM expenses
+         WHERE family_id = $1`,
+        [familyId, family.parent_b_id, family.parent_a_id]
+      );
 
-    const balance = {
-      net,
-      // Du point de vue de l'utilisateur courant
-      iOwe:   iAmParentA ? Math.max(0,  aToB - bToA) : Math.max(0, bToA - aToB),
-      theyOwe: iAmParentA ? Math.max(0, bToA - aToB) : Math.max(0, aToB - bToA),
-    };
+      const aToB  = parseFloat(balanceResult?.balance_a_to_b ?? '0');
+      const bToA  = parseFloat(balanceResult?.balance_b_to_a ?? '0');
+      const net   = parseFloat((bToA - aToB).toFixed(2)); // > 0 → parent_b owes parent_a
+
+      balance = {
+        net,
+        // Du point de vue de l'utilisateur courant
+        iOwe:   iAmParentA ? Math.max(0,  aToB - bToA) : Math.max(0, bToA - aToB),
+        theyOwe: iAmParentA ? Math.max(0, bToA - aToB) : Math.max(0, aToB - bToA),
+      };
+    }
 
     res.json({
       expenses: result,
       balance,
-      otherParentId: iAmParentA ? family.parent_b_id : family.parent_a_id,
+      otherParentId,
     });
   }
 );
@@ -277,9 +287,14 @@ router.post(
     }
 
     if (action === 'refuse') {
-      // On supprime la dépense refusée
-      await query(`DELETE FROM expenses WHERE id = $1`, [expenseId]);
-      res.json({ message: 'Dépense refusée et supprimée' });
+      // Ne pas supprimer : marquer comme refusé pour garder une trace
+      const row = await query(
+        `UPDATE expenses
+         SET validated_by = $2, validated_at = NOW()
+         WHERE id = $1 RETURNING *`,
+        [expenseId, userId]
+      );
+      res.json({ status: 'refused', expense: row[0] });
       return;
     }
 
