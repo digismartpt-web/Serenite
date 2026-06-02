@@ -6,7 +6,9 @@ import {
 import { useRouter }          from 'expo-router';
 import { Ionicons }           from '@expo/vector-icons';
 import { useSafeAreaInsets }  from 'react-native-safe-area-context';
-import * as SecureStore        from 'expo-secure-store';
+const SecureStore = typeof window !== 'undefined' && window.localStorage
+  ? { getItemAsync: async (k) => { try { return localStorage.getItem(k) } catch(e) { return null } }, setItemAsync: async (k, v) => { try { localStorage.setItem(k, v) } catch(e) {} } }
+  : require('expo-secure-store');
 import AsyncStorage            from '@react-native-async-storage/async-storage';
 
 import { useTheme, THEMES, Theme, ThemeMode } from '../context/ThemeContext';

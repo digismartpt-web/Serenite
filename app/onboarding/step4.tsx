@@ -4,7 +4,9 @@ import {
   ScrollView, Platform, Animated,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import * as SecureStore        from 'expo-secure-store';
+const SecureStore = typeof window !== 'undefined' && window.localStorage
+  ? { getItemAsync: async (k) => { try { return localStorage.getItem(k) } catch(e) { return null } }, setItemAsync: async (k, v) => { try { localStorage.setItem(k, v) } catch(e) {} } }
+  : require('expo-secure-store');
 import * as LocalAuthentication from 'expo-local-authentication';
 
 import { useOnboarding } from './OnboardingContext';
