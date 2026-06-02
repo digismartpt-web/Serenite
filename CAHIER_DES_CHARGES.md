@@ -20,7 +20,7 @@ Application de médiation parentale avec IA de Communication Non-Violente.
 
 ### 1.1 Avancement du développement
 
-L'application Sérénité est en cours de développement actif. Le code source est hébergé sur GitHub (Premium-a-juste-prix/Mediation) avec 7 commits complétés. Le vibe coding avec Claude Code est la méthode de développement adoptée.
+L'application Sérénité est en cours de développement actif. Le code source est hébergé sur GitHub (Premium-a-juste-prix/Serenite) avec 7 commits complétés. Le vibe coding avec Claude Code est la méthode de développement adoptée.
 
 | Commit | Phase | Contenu |
 |--------|-------|---------|
@@ -46,7 +46,7 @@ L'application Sérénité est en cours de développement actif. Le code source e
 | Appels A/V | LiveKit WebRTC (sans partage de numéro) |
 | Paiements | Stripe (abonnements) |
 | Hébergement | VPS NEW APP AI via Coolify |
-| Développement | Vibe coding avec Claude Code + GitHub (Premium-a-juste-prix/Mediation) |
+| Développement | Vibe coding avec Claude Code + GitHub (Premium-a-juste-prix/Serenite) |
 | Déploiement | Docker + docker-compose sur VPS |
 
 ---

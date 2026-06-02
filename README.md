@@ -83,7 +83,7 @@ de garde, finances partagées et espace enfant sécurisé.
 ### 1. Cloner le repo
 
 ```bash
-git clone https://github.com/Premium-a-juste-prix/Mediation.git
+git clone https://github.com/Premium-a-juste-prix/Serenite.git
 cd Mediation
 ```
 
