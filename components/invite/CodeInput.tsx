@@ -64,7 +64,7 @@ export default function CodeInput({
   useEffect(() => {
     const code = values.join('');
     onChangeCode?.(code);
-    if (code.length === length && !code.includes('')) {
+    if (code.length === length && !values.some(v => v === '')) {
       onComplete(code);
     }
   }, [values]);

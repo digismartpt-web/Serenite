@@ -17,14 +17,18 @@ const SECURE_TOKEN_KEY = 'serenite_auth_token';
 export default function LoginScreen() {
   const router = useRouter();
 
-  const [email,    setEmail]    = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState('');
+  const [pin,   setPin]   = useState('');
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState<string | null>(null);
 
   async function handleLogin() {
-    if (!email.trim() || !password) {
-      setError('Veuillez saisir votre email et votre mot de passe.');
+    if (!email.trim() || !pin) {
+      setError('Veuillez saisir votre email et votre code secret.');
+      return;
+    }
+    if (pin.length !== 6) {
+      setError('Le code secret doit faire 6 chiffres.');
       return;
     }
 
@@ -35,14 +39,14 @@ export default function LoginScreen() {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ email: email.toLowerCase().trim(), password }),
+        body:    JSON.stringify({ email: email.toLowerCase().trim(), pin }),
       });
 
       const body = await res.json();
 
       if (!res.ok) {
         if (res.status === 401) {
-          setError('Email ou mot de passe incorrect.');
+          setError('Email ou code secret incorrect.');
         } else {
           setError(body.error ?? 'Une erreur est survenue. Réessayez.');
         }
@@ -101,17 +105,19 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Mot de passe</Text>
+            <Text style={styles.label}>Code secret (6 chiffres)</Text>
             <TextInput
               style={styles.input}
-              value={password}
-              onChangeText={(v) => { setPassword(v); setError(null); }}
-              placeholder="••••••••"
+              value={pin}
+              onChangeText={(v) => { setPin(v.replace(/\D/g, '').slice(0, 6)); setError(null); }}
+              placeholder="••••••"
               placeholderTextColor="#A0AEC0"
               secureTextEntry
+              keyboardType="number-pad"
+              maxLength={6}
               returnKeyType="done"
               onSubmitEditing={handleLogin}
-              accessibilityLabel="Mot de passe"
+              accessibilityLabel="Code secret à 6 chiffres"
             />
           </View>
 
@@ -122,9 +128,9 @@ export default function LoginScreen() {
           )}
 
           <TouchableOpacity
-            style={[styles.primaryBtn, (loading || !email || !password) && styles.primaryBtnDisabled]}
+            style={[styles.primaryBtn, (loading || !email || !pin) && styles.primaryBtnDisabled]}
             onPress={handleLogin}
-            disabled={loading || !email || !password}
+            disabled={loading || !email || !pin}
             activeOpacity={0.85}
             accessibilityRole="button"
             accessibilityLabel="Se connecter"

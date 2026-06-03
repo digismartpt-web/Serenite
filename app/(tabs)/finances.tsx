@@ -331,14 +331,15 @@ export default function FinancesScreen() {
       .then((r) => r.json())
       .then((d) => {
         const f = d.family;
-        if (!f) return;
+        if (!f) { setLoading(false); return; }
         setFamilyId(f.id);
         const otherName = f.parent_a_id === user?.id
           ? (d.parentB?.first_name) ?? null
           : (d.parentA?.first_name) ?? null;
         setCoparent(otherName);
+        setLoading(false);
       })
-      .catch(() => {});
+      .catch(() => { setLoading(false); });
   }, [token]);
 
   // ── Charger dépenses ───────────────────────────────────────

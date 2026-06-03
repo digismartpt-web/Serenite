@@ -39,7 +39,7 @@ const IdentitySchema = z.object({
   phone: z
     .string({ required_error: 'Téléphone requis' })
     .transform((v) => v.replace(/[\s\-()./ ]/g, ''))
-    .regex(/^\+?\d{7,15}$/, 'Format : +336****5678 ou 0612345678'),
+    .refine((v) => /^\+?\d{7,15}$/.test(v), 'Format : +336****5678 ou 0612345678'),
   address: z.string().max(500).trim().optional(),
   birthDate: z
     .date({ required_error: 'Date de naissance requise' })

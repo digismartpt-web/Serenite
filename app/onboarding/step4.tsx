@@ -29,6 +29,7 @@ export default function Step4Screen() {
   const [firstPin,    setFirstPin]    = useState('');
   const [confirmKey,  setConfirmKey]  = useState(0);   // force re-mount CodeInput
   const [error,       setError]       = useState<string | null>(null);
+  const [currentCode, setCurrentCode] = useState('');
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
   const [biometricType,       setBiometricType]       = useState<string>('biométrie');
 
@@ -125,6 +126,7 @@ export default function Step4Screen() {
   function handleRestartCreation() {
     setFirstPin('');
     setError(null);
+    setCurrentCode('');
     setPhase('create');
     setConfirmKey((k) => k + 1);
   }
@@ -193,6 +195,7 @@ export default function Step4Screen() {
           length={6}
           secure
           onComplete={isConfirm ? handlePinConfirmed : handlePinCreated}
+          onChangeCode={setCurrentCode}
           accentColor={error ? '#E53E3E' : '#1A3A5C'}
           disabled={false}
         />
@@ -210,6 +213,17 @@ export default function Step4Screen() {
           <Text style={styles.errorIcon}>⚠️</Text>
           <Text style={styles.errorText}>{error}</Text>
         </View>
+      )}
+
+      {/* Bouton Continuer — visible quand les 6 chiffres sont saisis */}
+      {currentCode.length === 6 && (
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          onPress={isConfirm ? () => handlePinConfirmed(currentCode) : () => handlePinCreated(currentCode)}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.primaryBtnText}>Continuer</Text>
+        </TouchableOpacity>
       )}
 
       {/* Bouton "Recommencer" en phase confirmation */}
