@@ -1,5 +1,1 @@
-import { Redirect } from "expo-router";
-
-export default function CatchAll() {
-  return <Redirect href="/onboarding" />;
-}
+export { default } from "./onboarding/step1";

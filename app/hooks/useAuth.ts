@@ -1,5 +1,13 @@
 import { useState, useEffect, useCallback } from 'react';
-import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
+
+const SecureStore = Platform.OS === 'web'
+  ? {
+      getItemAsync:    async (k: string): Promise<string | null> => { try { return localStorage.getItem(k) } catch { return null } },
+      setItemAsync:    async (k: string, v: string): Promise<void> => { try { localStorage.setItem(k, v) } catch { } },
+      deleteItemAsync: async (k: string): Promise<void> => { try { localStorage.removeItem(k) } catch { } },
+    }
+  : require('expo-secure-store');
 
 const API_BASE        = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const SECURE_TOKEN    = 'serenite_auth_token';

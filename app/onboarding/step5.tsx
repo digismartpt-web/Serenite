@@ -9,10 +9,10 @@ const SecureStore = typeof window !== 'undefined' && window.localStorage
   ? { setItemAsync: async (k: string, v: string) => { try { localStorage.setItem(k, v) } catch(e) {} } }
   : require('expo-secure-store');
 
-import { useOnboarding } from './OnboardingContext';
+import { useOnboarding } from '../../contexts/OnboardingContext';
 
 // ─── Config ────────────────────────────────────────────────────
-const API_BASE = 'http://72.62.25.52:3000';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const SECURE_TOKEN_KEY = 'serenite_auth_token';
 
 // ─── Types ─────────────────────────────────────────────────────

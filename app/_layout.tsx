@@ -79,6 +79,9 @@ export default function RootLayout() {
         {/* Onboarding */}
         <Stack.Screen name="onboarding" options={{ animation: 'fade' }} />
 
+        {/* Authentification */}
+        <Stack.Screen name="auth"       options={{ animation: 'slide_from_bottom' }} />
+
         {/* Tunnel d'invitation */}
         <Stack.Screen name="invite"     options={{ headerShown: false }} />
 

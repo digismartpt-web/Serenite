@@ -7,9 +7,11 @@ import { useRouter } from 'expo-router';
 const SecureStore = typeof window !== 'undefined' && window.localStorage
   ? { getItemAsync: async (k) => { try { return localStorage.getItem(k) } catch(e) { return null } }, setItemAsync: async (k, v) => { try { localStorage.setItem(k, v) } catch(e) {} } }
   : require('expo-secure-store');
-import * as LocalAuthentication from 'expo-local-authentication';
+const LocalAuthentication = Platform.OS === 'web'
+  ? null
+  : require('expo-local-authentication');
 
-import { useOnboarding } from './OnboardingContext';
+import { useOnboarding } from '../../contexts/OnboardingContext';
 import CodeInput         from '../../components/invite/CodeInput';
 
 // ─── Clés SecureStore ─────────────────────────────────────────
@@ -35,6 +37,7 @@ export default function Step4Screen() {
 
   // ── Vérifier la disponibilité biométrique ──────────────────
   useEffect(() => {
+    if (!LocalAuthentication) return;
     (async () => {
       const hasHardware = await LocalAuthentication.hasHardwareAsync();
       const isEnrolled  = await LocalAuthentication.isEnrolledAsync();
@@ -94,6 +97,7 @@ export default function Step4Screen() {
 
   // ── Phase 3 : activation biométrie ────────────────────────
   const handleEnableBiometrics = useCallback(async () => {
+    if (!LocalAuthentication) { router.push('/onboarding/step5'); return; }
     try {
       const result = await LocalAuthentication.authenticateAsync({
         promptMessage:  `Activer ${biometricType} pour Sérénité`,

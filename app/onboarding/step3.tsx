@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
-import { useOnboarding, ParentType, ParentStatus } from './OnboardingContext';
+import { useOnboarding, ParentType, ParentStatus } from '../../contexts/OnboardingContext';
 
 // ─── Données ──────────────────────────────────────────────────
 

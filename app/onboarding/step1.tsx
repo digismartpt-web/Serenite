@@ -6,7 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { useOnboarding } from './OnboardingContext';
+import { useOnboarding } from '../../contexts/OnboardingContext';
 
 // ─── Langues disponibles ──────────────────────────────────────
 

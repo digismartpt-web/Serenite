@@ -9,7 +9,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-import { useOnboarding } from './OnboardingContext';
+import { useOnboarding } from '../../contexts/OnboardingContext';
 
 // ─── Schéma Zod ───────────────────────────────────────────────
 
@@ -38,8 +38,8 @@ const IdentitySchema = z.object({
     .transform((v) => v.toLowerCase().trim()),
   phone: z
     .string({ required_error: 'Téléphone requis' })
-    .transform((v) => v.replace(/[\s\-()]/g, ''))
-    .regex(/^(?:\+|00)?\d{7,15}$/, 'Format : +336****5678 ou 0612345678'),
+    .transform((v) => v.replace(/[\s\-()./ ]/g, ''))
+    .regex(/^\+?\d{7,15}$/, 'Format : +336****5678 ou 0612345678'),
   address: z.string().max(500).trim().optional(),
   birthDate: z
     .date({ required_error: 'Date de naissance requise' })
@@ -270,26 +270,29 @@ export default function Step2Screen() {
             name="birthDate"
             render={({ field: { value, onChange } }) => (
               <>
-                <TouchableOpacity
-                  style={[
-                    styles.input,
-                    styles.dateBtn,
-                    value && !errors.birthDate && styles.inputValid,
-                    !!errors.birthDate && styles.inputError,
-                  ]}
-                  onPress={() => setShowDatePicker(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel={value ? `Date : ${formatDate(value)}` : 'Choisir une date'}
-                >
-                  <Text style={[styles.dateBtnText, !value && styles.dateBtnPlaceholder]}>
-                    {value ? formatDate(value) : 'JJ / MM / AAAA'}
-                  </Text>
-                  {displayAge !== null && displayAge >= 18 && (
-                    <View style={styles.ageChip}>
-                      <Text style={styles.ageChipText}>{displayAge} ans</Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
+                {/* Bouton d'ouverture uniquement sur natif */}
+                {Platform.OS !== 'web' && (
+                  <TouchableOpacity
+                    style={[
+                      styles.input,
+                      styles.dateBtn,
+                      value && !errors.birthDate && styles.inputValid,
+                      !!errors.birthDate && styles.inputError,
+                    ]}
+                    onPress={() => setShowDatePicker(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel={value ? `Date : ${formatDate(value)}` : 'Choisir une date'}
+                  >
+                    <Text style={[styles.dateBtnText, !value && styles.dateBtnPlaceholder]}>
+                      {value ? formatDate(value) : 'JJ / MM / AAAA'}
+                    </Text>
+                    {displayAge !== null && displayAge >= 18 && (
+                      <View style={styles.ageChip}>
+                        <Text style={styles.ageChipText}>{displayAge} ans</Text>
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                )}
 
                 {Platform.OS === 'web' ? (
                   <input
@@ -297,7 +300,7 @@ export default function Step2Screen() {
                     value={value instanceof Date && !isNaN(value.getTime())
                       ? value.toISOString().split('T')[0]
                       : ''}
-                    onChange={(e) => {
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
                       const d = e.target.value ? new Date(e.target.value + 'T12:00:00') : new Date();
                       if (!isNaN(d.getTime())) onChange(d);
                     }}
@@ -305,8 +308,8 @@ export default function Step2Screen() {
                       width: '100%', padding: '12px 16px', fontSize: 16,
                       border: '1px solid ' + (errors?.birthDate ? '#E53E3E' : '#CBD5E0'),
                       borderRadius: 8, background: '#fff', color: '#1A202C',
-                      fontFamily: 'inherit', marginTop: 8,
-                    }}
+                      fontFamily: 'inherit',
+                    } as React.CSSProperties}
                   />
                 ) : showDatePicker && (
                   <DateTimePicker

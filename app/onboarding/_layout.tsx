@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native
 import { Stack, usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { OnboardingProvider } from './OnboardingContext';
+import { OnboardingProvider } from '../../contexts/OnboardingContext';
 import ProgressBar from '../../components/onboarding/ProgressBar';
 
 const TOTAL_STEPS = 5;
