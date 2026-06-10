@@ -8,8 +8,9 @@ import { useRouter }            from 'expo-router';
 import { Ionicons }             from '@expo/vector-icons';
 import { useSafeAreaInsets }    from 'react-native-safe-area-context';
 
-import { useTheme } from '../context/ThemeContext';
-import { useAuth }  from '../hooks/useAuth';
+import { useTheme }      from '../context/ThemeContext';
+import { useAuth }       from '../hooks/useAuth';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -30,7 +31,7 @@ interface Message {
 
 // ─── Utilitaires ──────────────────────────────────────────────
 
-function formatTime(iso: string): string {
+function formatTime(iso: string, t: (key: string) => string): string {
   const d = new Date(iso);
   const now = new Date();
   const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
@@ -38,7 +39,7 @@ function formatTime(iso: string): string {
   if (diffDays === 0) {
     return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
-  if (diffDays === 1) return 'Hier';
+  if (diffDays === 1) return t('messages.yesterday');
   if (diffDays < 7)  return d.toLocaleDateString('fr-FR', { weekday: 'short' });
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
@@ -59,9 +60,10 @@ interface BubbleProps {
   msg:      Message;
   isMine:   boolean;
   theme:    ReturnType<typeof useTheme>['theme'];
+  t:        (key: string) => string;
 }
 
-function MessageBubble({ msg, isMine, theme }: BubbleProps) {
+function MessageBubble({ msg, isMine, theme, t }: BubbleProps) {
   const [expanded, setExpanded] = useState(false);
 
   const bubbleBg = isMine
@@ -88,7 +90,7 @@ function MessageBubble({ msg, isMine, theme }: BubbleProps) {
         {msg.is_reformulated && (
           <View style={[styles.aiBadge, isMine ? styles.aiBadgeRight : styles.aiBadgeLeft]}>
             <Ionicons name="sparkles" size={10} color="#276749" />
-            <Text style={styles.aiBadgeText}>Reformulé par IA</Text>
+            <Text style={styles.aiBadgeText}>{t('messages.reformulated')}</Text>
           </View>
         )}
 
@@ -111,7 +113,7 @@ function MessageBubble({ msg, isMine, theme }: BubbleProps) {
         {/* Message original (dépliable) */}
         {expanded && msg.original_content && (
           <View style={styles.originalBox}>
-            <Text style={styles.originalLabel}>Message original :</Text>
+            <Text style={styles.originalLabel}>{t('messages.original')}</Text>
             <Text style={styles.originalText}>{msg.original_content}</Text>
           </View>
         )}
@@ -119,7 +121,7 @@ function MessageBubble({ msg, isMine, theme }: BubbleProps) {
         {/* Horodatage + lu */}
         <View style={[styles.meta, isMine && styles.metaRight]}>
           <Text style={[styles.metaTime, { color: theme.textSecondary }]}>
-            {formatTime(msg.created_at)}
+            {formatTime(msg.created_at, t)}
           </Text>
           {isMine && (
             <Ionicons
@@ -137,7 +139,7 @@ function MessageBubble({ msg, isMine, theme }: BubbleProps) {
 
 // ─── Séparateur de date ───────────────────────────────────────
 
-function DateSeparator({ date, theme }: { date: string; theme: ReturnType<typeof useTheme>['theme'] }) {
+function DateSeparator({ date, theme, t }: { date: string; theme: ReturnType<typeof useTheme>['theme']; t: (key: string) => string }) {
   const label = new Date(date).toLocaleDateString('fr-FR', {
     weekday: 'long', day: 'numeric', month: 'long',
   });
@@ -159,6 +161,7 @@ export default function MessagesScreen() {
   const insets            = useSafeAreaInsets();
   const { theme }         = useTheme();
   const { user, token }   = useAuth();
+  const { t } = useTranslation();
 
   const [messages,   setMessages]   = useState<Message[]>([]);
   const [familyId,   setFamilyId]   = useState<string | null>(null);
@@ -211,7 +214,7 @@ export default function MessagesScreen() {
         setMessages(msgData.messages ?? []);
       }
     } catch {
-      if (!silent) setError('Impossible de charger les messages');
+      if (!silent) setError(t('messages.loadError'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -259,7 +262,7 @@ export default function MessagesScreen() {
       {/* ─ Header ─ */}
       <View style={[styles.header, { backgroundColor: theme.headerBg, paddingTop: insets.top + 8 }]}>
         <View style={styles.headerLeft}>
-          <Text style={[styles.headerTitle, { color: theme.headerText }]}>{coparent ?? 'Messages'}</Text>
+          <Text style={[styles.headerTitle, { color: theme.headerText }]}>{coparent ?? t('messages.title')}</Text>
           {messages.filter((m) => !m.read_at && m.sender_id !== user?.id).length > 0 && (
             <View style={styles.headerBadge}>
               <Text style={styles.headerBadgeText}>
@@ -272,7 +275,7 @@ export default function MessagesScreen() {
           style={[styles.composeBtn, { borderColor: 'rgba(255,255,255,0.4)' }]}
           onPress={() => router.push('/messages/compose')}
           disabled={noFamily}
-          accessibilityLabel="Nouveau message"
+          accessibilityLabel={t('messages.newMessage')}
         >
           <Ionicons name="create-outline" size={20} color="#FFFFFF" />
         </TouchableOpacity>
@@ -283,16 +286,16 @@ export default function MessagesScreen() {
         <View style={styles.centered}>
           <Text style={{ fontSize: 48 }}>👨‍👩‍👧</Text>
           <Text style={[styles.emptyTitle, { color: theme.text }]}>
-            Pas encore de famille liée
+            {t('messages.noFamily')}
           </Text>
           <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-            Invitez votre coparent pour commencer à échanger des messages.
+            {t('messages.noFamilyDesc')}
           </Text>
           <TouchableOpacity
             style={[styles.inviteBtn, { backgroundColor: theme.primary }]}
             onPress={() => router.push('/invite/send')}
           >
-            <Text style={styles.inviteBtnText}>Inviter mon coparent</Text>
+            <Text style={styles.inviteBtnText}>{t('messages.invite')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -306,7 +309,7 @@ export default function MessagesScreen() {
             style={[styles.retryBtn, { borderColor: theme.border }]}
             onPress={() => loadData()}
           >
-            <Text style={[styles.retryBtnText, { color: theme.primary }]}>Réessayer</Text>
+            <Text style={[styles.retryBtnText, { color: theme.primary }]}>{t('retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -318,10 +321,10 @@ export default function MessagesScreen() {
             <View style={styles.centered}>
               <Text style={{ fontSize: 52 }}>💬</Text>
               <Text style={[styles.emptyTitle, { color: theme.text }]}>
-                Commencez à échanger
+                {t('messages.empty')}
               </Text>
               <Text style={[styles.emptyBody, { color: theme.textSecondary }]}>
-                Vos messages sont reformulés par l'IA{'\n'}pour une communication apaisée.
+                {t('messages.emptyDesc')}
               </Text>
             </View>
           ) : (
@@ -339,7 +342,7 @@ export default function MessagesScreen() {
               }
               renderItem={({ item }) => {
                 if ('type' in item && item.type === 'date-separator') {
-                  return <DateSeparator date={item.date} theme={theme} />;
+                  return <DateSeparator date={item.date} theme={theme} t={t} />;
                 }
                 const msg = item as Message;
                 return (
@@ -347,6 +350,7 @@ export default function MessagesScreen() {
                     msg={msg}
                     isMine={msg.sender_id === user?.id}
                     theme={theme}
+                    t={t}
                   />
                 );
               }}
@@ -357,7 +361,7 @@ export default function MessagesScreen() {
           <TouchableOpacity
             style={[styles.fab, { backgroundColor: theme.primary, bottom: insets.bottom + 20 }]}
             onPress={() => router.push('/messages/compose')}
-            accessibilityLabel="Nouveau message"
+            accessibilityLabel={t('messages.newMessage')}
             accessibilityRole="button"
           >
             <Ionicons name="create" size={24} color="#FFFFFF" />

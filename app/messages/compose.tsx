@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '../context/ThemeContext';
 import { useAuth }  from '../hooks/useAuth';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -51,6 +52,7 @@ function useCountdown(expiresAt: string | null): string | null {
 // ─── Barre d'agressivité ──────────────────────────────────────
 
 function AggressivenessBar({ score }: { score: number }) {
+  const { t } = useTranslation();
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -58,7 +60,7 @@ function AggressivenessBar({ score }: { score: number }) {
   }, [score]);
 
   const color = score > 0.7 ? '#E53E3E' : score > 0.4 ? '#D97706' : '#1D9E75';
-  const label = score > 0.7 ? 'Ton agressif' : score > 0.4 ? 'Ton tendu' : 'Ton neutre';
+  const label = score > 0.7 ? t('compose.aggressive') : score > 0.4 ? t('compose.tense') : t('compose.neutral');
 
   const width = anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
 
@@ -91,6 +93,7 @@ export default function ComposeScreen() {
   const insets   = useSafeAreaInsets();
   const { theme } = useTheme();
   const { token, user } = useAuth();
+  const { t } = useTranslation();
 
   const [familyId,     setFamilyId]     = useState<string | null>(null);
   const [phase,        setPhase]        = useState<Phase>('draft');
@@ -134,7 +137,7 @@ export default function ComposeScreen() {
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data.error ?? 'Erreur lors de la reformulation');
+        setError(data.error ?? t('compose.err.reformulation'));
         setPhase('draft');
         return;
       }
@@ -143,7 +146,7 @@ export default function ComposeScreen() {
       setReformulated(data.reformulatedContent);
       setPhase('review');
     } catch {
-      setError('Impossible de contacter le serveur. Vérifiez votre connexion.');
+      setError(t('compose.err.server'));
       setPhase('draft');
     }
   }
@@ -178,9 +181,9 @@ export default function ComposeScreen() {
         const data = await res.json();
         // Pause en cours ?
         if (res.status === 429) {
-          setError(`Pause de réflexion en cours. Réessayez dans quelques minutes.`);
+          setError(t('compose.err.pause'));
         } else {
-          setError(data.error ?? "Erreur lors de l'envoi");
+          setError(data.error ?? t('compose.err.send'));
         }
         return;
       }
@@ -188,7 +191,7 @@ export default function ComposeScreen() {
       // Succès → retour à la liste
       router.back();
     } catch {
-      setError("Impossible d'envoyer le message. Vérifiez votre connexion.");
+      setError(t('compose.err.sendNet'));
     } finally {
       setSending(false);
     }
@@ -208,11 +211,11 @@ export default function ComposeScreen() {
           <TouchableOpacity
             style={styles.backBtn}
             onPress={() => router.back()}
-            accessibilityLabel="Retour"
+            accessibilityLabel={t('back')}
           >
             <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Nouveau message</Text>
+          <Text style={styles.headerTitle}>{t('messages.newMessage')}</Text>
           <View style={{ width: 40 }} />
         </View>
 
@@ -225,7 +228,7 @@ export default function ComposeScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionDot} />
-              <Text style={[styles.sectionLabel, { color: theme.text }]}>Votre message</Text>
+              <Text style={[styles.sectionLabel, { color: theme.text }]}>{t('compose.yourMessage')}</Text>
             </View>
 
             <View style={styles.draftZone}>
@@ -233,13 +236,13 @@ export default function ComposeScreen() {
                 style={styles.draftInput}
                 value={draftText}
                 onChangeText={setDraftText}
-                placeholder="Écrivez votre message ici…"
+                placeholder={t('compose.placeholder')}
                 placeholderTextColor="#B0807A"
                 multiline
                 numberOfLines={5}
                 textAlignVertical="top"
                 editable={phase !== 'reformulating'}
-                accessibilityLabel="Zone de saisie du message"
+                accessibilityLabel={t('compose.inputAria')}
               />
             </View>
 
@@ -270,16 +273,16 @@ export default function ComposeScreen() {
               <View style={styles.sectionHeader}>
                 <View style={[styles.aiBadge]}>
                   <Ionicons name="sparkles" size={11} color="#276749" />
-                  <Text style={styles.aiBadgeText}>IA — CNV</Text>
+                  <Text style={styles.aiBadgeText}>{t('voice.aiCnvBadge')}</Text>
                 </View>
-                <Text style={[styles.sectionLabel, { color: theme.text }]}>Message reformulé</Text>
+                <Text style={[styles.sectionLabel, { color: theme.text }]}>{t('compose.reformulated')}</Text>
               </View>
 
               <View style={styles.reformulatedZone}>
                 {phase === 'reformulating' ? (
                   <View style={styles.loadingRow}>
                     <ActivityIndicator color="#276749" />
-                    <Text style={styles.loadingText}>Reformulation en cours…</Text>
+                    <Text style={styles.loadingText}>{t('compose.reformulating')}</Text>
                   </View>
                 ) : (
                   <TextInput
@@ -290,7 +293,7 @@ export default function ComposeScreen() {
                     numberOfLines={5}
                     textAlignVertical="top"
                     editable={isEditing}
-                    accessibilityLabel="Message reformulé"
+                    accessibilityLabel={t('compose.reformulated')}
                   />
                 )}
               </View>
@@ -300,9 +303,9 @@ export default function ComposeScreen() {
                 <View style={styles.timerBanner}>
                   <Ionicons name="timer-outline" size={18} color="#8C2B1E" />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.timerTitle}>Pause de réflexion recommandée</Text>
+                    <Text style={styles.timerTitle}>{t('compose.pauseTitle')}</Text>
                     <Text style={styles.timerBody}>
-                      Ce message contient un ton agressif. Un délai de réflexion vous aide à communiquer plus sereinement.
+                      {t('compose.pauseBody')}
                     </Text>
                   </View>
                   <Text style={styles.timerCountdown}>{countdown}</Text>
@@ -335,10 +338,10 @@ export default function ComposeScreen() {
               onPress={handleReformulate}
               disabled={!draftText.trim() || !familyId}
               activeOpacity={0.85}
-              accessibilityLabel="Reformuler avec l'IA"
+              accessibilityLabel={t('compose.reformulateAria')}
             >
               <Ionicons name="sparkles" size={18} color="#FFFFFF" />
-              <Text style={styles.actionBtnPrimaryText}>Reformuler</Text>
+              <Text style={styles.actionBtnPrimaryText}>{t('compose.reformulate')}</Text>
             </TouchableOpacity>
           )}
 
@@ -350,10 +353,10 @@ export default function ComposeScreen() {
               <TouchableOpacity
                 style={[styles.actionBtnGhost, { borderColor: theme.border }]}
                 onPress={() => { setPhase('draft'); setResult(null); setIsEditing(false); }}
-                accessibilityLabel="Recommencer"
+                accessibilityLabel={t('compose.restart')}
               >
                 <Ionicons name="refresh" size={16} color={theme.textSecondary} />
-                <Text style={[styles.actionBtnGhostText, { color: theme.textSecondary }]}>Recommencer</Text>
+                <Text style={[styles.actionBtnGhostText, { color: theme.textSecondary }]}>{t('compose.restart')}</Text>
               </TouchableOpacity>
 
               {/* Modifier */}
@@ -364,11 +367,11 @@ export default function ComposeScreen() {
                   isEditing && { backgroundColor: '#EDF7F3' },
                 ]}
                 onPress={() => setIsEditing((e) => !e)}
-                accessibilityLabel={isEditing ? 'Terminer la modification' : 'Modifier le texte'}
+                accessibilityLabel={isEditing ? t('compose.finishEditing') : t('compose.editText')}
               >
                 <Ionicons name={isEditing ? 'checkmark' : 'pencil'} size={16} color={isEditing ? '#276749' : theme.textSecondary} />
                 <Text style={[styles.actionBtnGhostText, { color: isEditing ? '#276749' : theme.textSecondary }]}>
-                  {isEditing ? 'Valider' : 'Modifier'}
+                  {isEditing ? t('compose.validate') : t('compose.edit')}
                 </Text>
               </TouchableOpacity>
 
@@ -380,14 +383,14 @@ export default function ComposeScreen() {
                 ]}
                 onPress={handleSend}
                 disabled={!canSend || sending || !familyId}
-                accessibilityLabel="Envoyer le message"
+                accessibilityLabel={t('compose.sendAria')}
               >
                 {sending ? (
                   <ActivityIndicator size="small" color="#FFFFFF" />
                 ) : (
                   <>
                     <Ionicons name="checkmark" size={18} color="#FFFFFF" />
-                    <Text style={styles.actionBtnSendText}>Envoyer</Text>
+                    <Text style={styles.actionBtnSendText}>{t('compose.send')}</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -403,7 +406,7 @@ export default function ComposeScreen() {
               disabled={sending}
             >
               <Text style={[styles.sendDirectLinkText, { color: theme.textSecondary }]}>
-                Envoyer sans reformuler →
+                {t('compose.sendDirect')}
               </Text>
             </TouchableOpacity>
           )}

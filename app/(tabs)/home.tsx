@@ -6,6 +6,7 @@ import {
 import { useRouter } from 'expo-router';
 import { Ionicons }  from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useTranslation } from '../../i18n/useTranslation';
 
 import { useTheme } from '../context/ThemeContext';
 import { useAuth }  from '../hooks/useAuth';
@@ -46,10 +47,10 @@ interface MedicalEvent {
 // ─── Données mock (remplacées par API en Wave 2-3) ───────────
 
 const SHORTCUTS: Shortcut[] = [
-  { id: 'agenda',    icon: 'calendar-outline',  label: 'Agenda',    route: '/(tabs)/calendar', color: '#4A90D9' },
-  { id: 'message',   icon: 'chatbubble-outline', label: 'Message',   route: '/(tabs)/messages', color: '#1D9E75' },
-  { id: 'depense',   icon: 'receipt-outline',    label: 'Dépense',   route: '/(tabs)/finances', color: '#D97706' },
-  { id: 'documents', icon: 'document-outline',   label: 'Documents', route: '/documents',        color: '#7C3AED' },
+  { id: 'agenda',    icon: 'calendar-outline',  label: 'home.agenda',    route: '/(tabs)/calendar', color: '#4A90D9' },
+  { id: 'message',   icon: 'chatbubble-outline', label: 'home.message',   route: '/(tabs)/messages', color: '#1D9E75' },
+  { id: 'depense',   icon: 'receipt-outline',    label: 'home.expense',   route: '/(tabs)/finances', color: '#D97706' },
+  { id: 'documents', icon: 'document-outline',   label: 'home.documents', route: '/documents',        color: '#7C3AED' },
 ];
 
 const MOCK_NOTIFICATIONS: Notification[] = [
@@ -85,9 +86,9 @@ function computeCountdown(): string {
 
 function greetingByHour(): string {
   const h = new Date().getHours();
-  if (h < 12) return 'Bonjour';
-  if (h < 18) return 'Bon après-midi';
-  return 'Bonsoir';
+  if (h < 12) return 'home.greeting.morning';
+  if (h < 18) return 'home.greeting.afternoon';
+  return 'home.greeting.evening';
 }
 
 // ─── Écran Accueil ────────────────────────────────────────────
@@ -97,6 +98,7 @@ export default function HomeScreen() {
   const insets  = useSafeAreaInsets();
   const { theme } = useTheme();
   const { user, token }  = useAuth();
+  const { t } = useTranslation();
 
   const [countdown, setCountdown] = useState(computeCountdown());
   const [familyId, setFamilyId] = useState<string | null>(null);
@@ -177,7 +179,7 @@ export default function HomeScreen() {
       <View style={styles.header}>
         <View>
           <Text style={[styles.greeting, { color: theme.textSecondary }]}>
-            {greetingByHour()},
+            {t(greetingByHour())},
           </Text>
           <Text style={[styles.firstName, { color: theme.text }]}>
             {firstName} 👋
@@ -186,7 +188,7 @@ export default function HomeScreen() {
         <TouchableOpacity
           style={[styles.notifBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={() => {}}
-          accessibilityLabel="Notifications"
+          accessibilityLabel={t('home.notifications')}
         >
           <Ionicons name="notifications-outline" size={22} color={theme.primary} />
           <View style={styles.notifDot} />
@@ -196,7 +198,7 @@ export default function HomeScreen() {
       {/* ─── Bannière garde ────────────────────────────────── */}
       <View style={[styles.custodyCard, { backgroundColor: theme.primary }]}>
         <View style={styles.custodyLeft}>
-          <Text style={styles.custodyLabel}>Ce soir</Text>
+          <Text style={styles.custodyLabel}>{t('home.tonight')}</Text>
           <Text style={styles.custodyTitle}>
             {custodyEmoji}  Chez {custodyAt}
           </Text>
@@ -206,16 +208,16 @@ export default function HomeScreen() {
           <TouchableOpacity
             style={styles.custodyBtn}
             onPress={() => router.push('/(tabs)/calendar')}
-            accessibilityLabel="Voir l'agenda"
+            accessibilityLabel={t('home.viewAgenda')}
           >
-            <Text style={styles.custodyBtnText}>Agenda →</Text>
+            <Text style={styles.custodyBtnText}>{t('home.agenda')} →</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {/* ─── Raccourcis ────────────────────────────────────── */}
       <View style={styles.sectionRow}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Accès rapide</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('home.quickAccess')}</Text>
       </View>
       <View style={styles.shortcuts}>
         {SHORTCUTS.map((s) => (
@@ -224,19 +226,19 @@ export default function HomeScreen() {
             style={[styles.shortcutBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
             onPress={() => router.push(s.route as any)}
             activeOpacity={0.8}
-            accessibilityLabel={s.label}
+            accessibilityLabel={t(s.label)}
           >
             <View style={[styles.shortcutIcon, { backgroundColor: s.color + '18' }]}>
               <Ionicons name={s.icon} size={22} color={s.color} />
             </View>
-            <Text style={[styles.shortcutLabel, { color: theme.text }]}>{s.label}</Text>
+            <Text style={[styles.shortcutLabel, { color: theme.text }]}>{t(s.label)}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {/* ─── Métriques ─────────────────────────────────────── */}
       <View style={styles.sectionRow}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Aujourd'hui</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('home.today')}</Text>
       </View>
       <View style={styles.metrics}>
 
@@ -249,7 +251,7 @@ export default function HomeScreen() {
             <Text style={[styles.metricValue, { color: theme.text }]}>3</Text>
           </View>
           <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
-            Messages{'\n'}non lus
+            {t('home.unreadMessages')}
           </Text>
         </View>
 
@@ -264,7 +266,7 @@ export default function HomeScreen() {
             </Text>
           </View>
           <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
-            Score{'\n'}sérénité
+            {t('home.serenityScore')}
           </Text>
         </View>
 
@@ -274,7 +276,7 @@ export default function HomeScreen() {
       <View style={[styles.serenityCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.serenityHeader}>
           <Text style={[styles.serenityTitle, { color: theme.text }]}>
-            🕊️  Indice de sérénité
+            🕊️  {t('home.serenityIndex')}
           </Text>
           <Text style={[styles.serenityScore, { color: '#1D9E75' }]}>
             {Math.round(SERENITY_SCORE * 100)} / 100
@@ -283,11 +285,11 @@ export default function HomeScreen() {
         <View style={[styles.serenityTrack, { backgroundColor: theme.surfaceAlt }]}>
           <Animated.View
             style={[styles.serenityFill, { width: serenityWidth }]}
-            accessibilityLabel={`Score sérénité : ${Math.round(SERENITY_SCORE * 100)}%`}
+            accessibilityLabel={t('home.serenityAria', { score: Math.round(SERENITY_SCORE * 100) })}
           />
         </View>
         <Text style={[styles.serenityHint, { color: theme.textSecondary }]}>
-          Basé sur le ton des 30 derniers messages
+          {t('home.basedOnMessages')}
         </Text>
       </View>
 
@@ -295,16 +297,16 @@ export default function HomeScreen() {
       {medicalEvents.length > 0 && (
         <>
           <View style={styles.sectionRow}>
-            <Text style={[styles.sectionTitle, { color: theme.text }]}>🏥  Prochains RDV médicaux</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text }]}>🏥  {t('home.medicalAppts')}</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/calendar')}>
-              <Text style={[styles.seeAll, { color: theme.primary }]}>Agenda →</Text>
+              <Text style={[styles.seeAll, { color: theme.primary }]}>{t('home.agenda')} →</Text>
             </TouchableOpacity>
           </View>
           {medicalEvents.slice(0, 3).map((ev) => {
             const d = new Date(ev.start_at);
             const dateStr = d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
             const timeStr = ev.all_day
-              ? 'Toute la journée'
+              ? t('home.allDay')
               : d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
             return (
               <TouchableOpacity
@@ -339,18 +341,18 @@ export default function HomeScreen() {
         >
           <Text style={{ fontSize: 20 }}>🏥</Text>
           <Text style={[styles.medicalEmptyText, { color: theme.textSecondary }]}>
-            Aucun rendez-vous médical à venir
+            {t('home.noAppointments')}
           </Text>
           <Ionicons name="add-circle-outline" size={18} color={theme.primary} />
-          <Text style={[styles.medicalEmptyAction, { color: theme.primary }]}>Ajouter</Text>
+          <Text style={[styles.medicalEmptyAction, { color: theme.primary }]}>{t('home.add')}</Text>
         </TouchableOpacity>
       )}
 
       {/* ─── Notifications récentes ────────────────────────── */}
       <View style={styles.sectionRow}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Récent</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('home.recent')}</Text>
         <TouchableOpacity onPress={() => {}}>
-          <Text style={[styles.seeAll, { color: theme.primary }]}>Tout voir</Text>
+          <Text style={[styles.seeAll, { color: theme.primary }]}>{t('home.seeAll')}</Text>
         </TouchableOpacity>
       </View>
 

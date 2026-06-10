@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTranslation } from '../../i18n/useTranslation';
 
 // ─── Constantes ───────────────────────────────────────────────
 
@@ -17,9 +18,9 @@ const CHILD_BORDER  = '#E9D8FD';
 const CHILD_ACCENT  = '#F6AD55';
 const CHILD_GREEN   = '#48BB78';
 
-const DAYS_SHORT    = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const DAYS_SHORT    = ['day.mon', 'day.tue', 'day.wed', 'day.thu', 'day.fri', 'day.sat', 'day.sun'];
 const MOODS         = ['😞', '😕', '😐', '🙂', '😄'];
-const MOOD_LABELS   = ['Triste', 'Pas bien', 'Normal', 'Bien', 'Super !'];
+const MOOD_LABEL_KEYS = ['child.mood.sad', 'child.mood.notGood', 'child.mood.normal', 'child.mood.good', 'child.mood.super'];
 const MOOD_COLORS   = ['#FC8181', '#F6AD55', '#90CDF4', '#68D391', '#F6E05E'];
 
 const JOURNAL_KEY   = '@serenite/child_journal';
@@ -29,13 +30,13 @@ const CHECKLIST_KEY = '@serenite/child_checklist';
 // ─── Items checklist sac ──────────────────────────────────────
 
 const CHECKLIST_ITEMS = [
-  { id: 'school',    label: 'Affaires de school', emoji: '📚' },
-  { id: 'sport',     label: 'Tenue de sport',     emoji: '👟' },
-  { id: 'pyjama',   label: 'Pyjama',              emoji: '🌙' },
-  { id: 'doudou',   label: 'Doudou / Peluche',    emoji: '🧸' },
-  { id: 'charger',  label: 'Chargeur téléphone',  emoji: '🔌' },
-  { id: 'medicine', label: 'Médicaments',          emoji: '💊' },
-  { id: 'money',    label: 'Argent de poche',      emoji: '💰' },
+  { id: 'school',    labelKey: 'child.checklist.school', emoji: '📚' },
+  { id: 'sport',     labelKey: 'child.checklist.sport',     emoji: '👟' },
+  { id: 'pyjama',   labelKey: 'child.checklist.pyjama',   emoji: '🌙' },
+  { id: 'doudou',   labelKey: 'child.checklist.doudou',    emoji: '🧸' },
+  { id: 'charger',  labelKey: 'child.checklist.charger',  emoji: '🔌' },
+  { id: 'medicine', labelKey: 'child.checklist.medicine',  emoji: '💊' },
+  { id: 'money',    labelKey: 'child.checklist.money',      emoji: '💰' },
 ];
 
 // ─── Utilitaires ──────────────────────────────────────────────
@@ -66,7 +67,10 @@ function formatTime(d: Date): string {
 export default function ChildHome() {
   const router  = useRouter();
   const insets  = useSafeAreaInsets();
+  const { t }   = useTranslation();
 
+  // Âge simulateur (remplacé par l'API plus tard)
+  const [childAge, setChildAge]       = useState<'4-7' | '8-12' | '13-17'>('8-12');
   // Humeur
   const [mood, setMood]               = useState<number | null>(null);
   // Journal
@@ -74,6 +78,39 @@ export default function ChildHome() {
   const [journalSaved, setJournalSaved] = useState(false);
   // Checklist
   const [checked, setChecked]         = useState<Record<string, boolean>>({});
+
+  // ── Adaptation par âge ──────────────────────────────────────────
+  function getAgeAdaptation(age: '4-7' | '8-12' | '13-17') {
+    switch (age) {
+      case '4-7':
+        return {
+          fontSize: { title: 24, body: 20, button: 18 },
+          spacing: 24,
+          iconSize: 48,
+          showLabels: false,
+          simpleText: true,
+          detailedView: false,
+        };
+      case '8-12':
+        return {
+          fontSize: { title: 22, body: 16, button: 16 },
+          spacing: 16,
+          iconSize: 36,
+          showLabels: true,
+          simpleText: true,
+          detailedView: false,
+        };
+      case '13-17':
+        return {
+          fontSize: { title: 20, body: 14, button: 14 },
+          spacing: 12,
+          iconSize: 28,
+          showLabels: true,
+          simpleText: false,
+          detailedView: true,
+        };
+    }
+  }
 
   const weekDays = getWeekDays();
 
@@ -115,23 +152,25 @@ export default function ChildHome() {
 
   // ── Appel parent ──────────────────────────────────────────────
   function callParent(who: 'papa' | 'maman') {
+    const parentLabel = who === 'papa' ? t('child.home.dad') : t('child.home.mom');
     Alert.alert(
-      `Appeler ${who === 'papa' ? 'Papa' : 'Maman'}`,
-      `Veux-tu appeler ${who === 'papa' ? 'Papa' : 'Maman'} maintenant ?`,
+      t('child.home.callTitle', { parent: parentLabel }),
+      t('child.home.callBody', { parent: parentLabel }),
       [
-        { text: 'Non', style: 'cancel' },
+        { text: t('child.home.callNo'), style: 'cancel' },
         {
-          text: 'Oui, appeler !',
+          text: t('child.home.callYes'),
           onPress: () => {
             // En prod, on utiliserait le numéro réel depuis l'API famille
-            Alert.alert('Appel en cours…', `Connexion avec ${who === 'papa' ? 'Papa' : 'Maman'}`);
+            Alert.alert(t('child.home.calling'), t('child.home.callingBody', { parent: parentLabel }));
           },
         },
       ]
     );
   }
 
-  const today = new Date();
+  const adapt   = getAgeAdaptation(childAge);
+  const today   = new Date();
   const todayStr = today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
 
   return (
@@ -144,137 +183,275 @@ export default function ChildHome() {
       {/* ── Bonjour ── */}
       <View style={styles.heroCard}>
         <Text style={styles.heroEmoji}>🌟</Text>
-        <Text style={styles.heroTitle}>Bonjour !</Text>
+        <Text style={[styles.heroTitle, { fontSize: adapt.fontSize.title }]}>{t('child.home.hello')}</Text>
         <Text style={styles.heroDate}>{todayStr}</Text>
+      </View>
+
+      {/* ── Sélecteur âge (simulateur) ── */}
+      <View style={styles.ageSelector}>
+        {(['4-7', '8-12', '13-17'] as const).map((age) => (
+          <TouchableOpacity
+            key={age}
+            style={[styles.ageBtn, childAge === age && styles.ageBtnActive]}
+            onPress={() => setChildAge(age)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.ageBtnText, childAge === age && styles.ageBtnTextActive]}>
+              {age === '4-7' ? '🧸 4-7 ans' : age === '8-12' ? '📚 8-12 ans' : '👤 13-17 ans'}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       {/* ── Appels parents ── */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Appeler</Text>
+        <Text style={styles.sectionTitle}>{t('child.home.call')}</Text>
         <View style={styles.callRow}>
           <TouchableOpacity style={[styles.callBtn, { backgroundColor: '#2B6CB0' }]} onPress={() => callParent('papa')}>
             <Text style={styles.callEmoji}>👨</Text>
-            <Text style={styles.callLabel}>Papa</Text>
+            <Text style={styles.callLabel}>{t('child.home.dad')}</Text>
             <Ionicons name="call" size={18} color="#FFF" />
           </TouchableOpacity>
           <TouchableOpacity style={[styles.callBtn, { backgroundColor: '#702459' }]} onPress={() => callParent('maman')}>
             <Text style={styles.callEmoji}>👩</Text>
-            <Text style={styles.callLabel}>Maman</Text>
+            <Text style={styles.callLabel}>{t('child.home.mom')}</Text>
             <Ionicons name="call" size={18} color="#FFF" />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* ── Calendrier semaine ── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ma semaine</Text>
-        <View style={[styles.card, styles.weekRow]}>
+      <View style={[styles.section, { marginTop: adapt.spacing }]}>
+        <Text style={[styles.sectionTitle, { fontSize: adapt.detailedView ? 14 : 16 }]}>{t('child.home.myWeek')}</Text>
+        <View style={[styles.card, styles.weekRow, { padding: adapt.detailedView ? 8 : adapt.spacing / 2 }]}>
           {weekDays.map((d, i) => (
-            <View key={i} style={[styles.dayCell, d.isToday && styles.dayCellToday]}>
-              <Text style={[styles.dayLabel, d.isToday && styles.dayLabelToday]}>{d.label}</Text>
-              <Text style={[styles.dayNum, d.isToday && styles.dayNumToday]}>{d.dayNum}</Text>
-              {/* Indicateur parent : alternance symbolique */}
+            <View key={i} style={[
+              styles.dayCell,
+              d.isToday && styles.dayCellToday,
+              { padding: adapt.simpleText ? 6 : 4, gap: adapt.simpleText ? 6 : 2 },
+            ]}>
+              <Text style={[
+                styles.dayLabel,
+                d.isToday && styles.dayLabelToday,
+                { fontSize: adapt.simpleText ? 12 : 10 },
+              ]}>{t(d.label)}</Text>
+              <Text style={[
+                styles.dayNum,
+                d.isToday && styles.dayNumToday,
+                { fontSize: adapt.simpleText ? 20 : 16, fontWeight: adapt.simpleText ? '900' : '800' },
+              ]}>{d.dayNum}</Text>
+              {/* Indicateur parent : plus gros pour 4-7 */}
               <View style={[
                 styles.dayDot,
-                { backgroundColor: i % 2 === 0 ? '#2B6CB0' : '#702459' },
+                {
+                  backgroundColor: i % 2 === 0 ? '#2B6CB0' : '#702459',
+                  width: adapt.iconSize > 40 ? 14 : 8,
+                  height: adapt.iconSize > 40 ? 14 : 8,
+                  borderRadius: adapt.iconSize > 40 ? 7 : 4,
+                },
               ]} />
+              {/* Détails supplémentaires pour 13-17 */}
+              {adapt.detailedView && (
+                <Text style={{ fontSize: 9, color: '#6B46C1', marginTop: 2 }}>
+                  {i % 2 === 0 ? 'Papa' : 'Maman'}
+                </Text>
+              )}
             </View>
           ))}
         </View>
-        <Text style={styles.weekLegend}>
-          <View style={[styles.legendDot, { backgroundColor: '#2B6CB0' }]} /> Papa &nbsp;&nbsp;
-          <View style={[styles.legendDot, { backgroundColor: '#702459' }]} /> Maman
-        </Text>
+        {adapt.showLabels && (
+          <Text style={[styles.weekLegend, { fontSize: adapt.simpleText ? 13 : 11 }]}>
+            <View style={[styles.legendDot, { backgroundColor: '#2B6CB0' }]} /> {t('child.home.legendDad')} &nbsp;&nbsp;
+            <View style={[styles.legendDot, { backgroundColor: '#702459' }]} /> {t('child.home.legendMom')}
+          </Text>
+        )}
       </View>
 
       {/* ── Humeur ── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Comment tu te sens ?</Text>
-        <View style={[styles.card, styles.moodRow]}>
+      <View style={[styles.section, { marginTop: adapt.spacing }]}>
+        <Text style={[styles.sectionTitle, { fontSize: adapt.detailedView ? 14 : 16 }]}>{t('child.home.howFeel')}</Text>
+        <View style={[styles.card, styles.moodRow, { padding: adapt.spacing / 2 }]}>
           {MOODS.map((emoji, i) => (
             <TouchableOpacity
               key={i}
               style={[
                 styles.moodBtn,
                 mood === i && { backgroundColor: MOOD_COLORS[i] + '33', borderColor: MOOD_COLORS[i], borderWidth: 2 },
+                { minWidth: adapt.showLabels ? 48 : 56 },
               ]}
               onPress={() => handleMood(i)}
               activeOpacity={0.7}
             >
-              <Text style={styles.moodEmoji}>{emoji}</Text>
-              {mood === i && (
-                <Text style={[styles.moodLabel, { color: MOOD_COLORS[i] }]}>{MOOD_LABELS[i]}</Text>
+              <Text style={[styles.moodEmoji, { fontSize: adapt.simpleText ? 40 : (adapt.detailedView ? 28 : 32) }]}>{emoji}</Text>
+              {/* Labels : cachés pour 4-7, simples pour 8-12, normaux pour 13-17 */}
+              {adapt.showLabels && (
+                <Text style={[
+                  styles.moodLabel,
+                  {
+                    color: MOOD_COLORS[i],
+                    fontSize: adapt.simpleText ? 10 : 9,
+                    fontWeight: adapt.detailedView ? '500' : '700',
+                  },
+                ]}>
+                  {adapt.simpleText
+                    ? ['😞','😕','😐','🙂','😄'][i]
+                    : t(MOOD_LABEL_KEYS[i])
+                  }
+                </Text>
               )}
             </TouchableOpacity>
           ))}
         </View>
         {mood !== null && (
-          <Text style={styles.moodConfirm}>Humeur enregistrée pour aujourd'hui ✓</Text>
+          <Text style={[styles.moodConfirm, { fontSize: adapt.simpleText ? 14 : 12 }]}>{t('child.home.moodSaved')}</Text>
         )}
       </View>
 
       {/* ── Checklist sac ── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Mon sac est prêt ?</Text>
-        <View style={styles.card}>
+      <View style={[styles.section, { marginTop: adapt.spacing }]}>
+        <Text style={[styles.sectionTitle, { fontSize: adapt.detailedView ? 14 : 16 }]}>{t('child.home.bagReady')}</Text>
+        <View style={[styles.card, { padding: adapt.spacing }]}>
           {CHECKLIST_ITEMS.map((item) => (
             <TouchableOpacity
               key={item.id}
-              style={styles.checkRow}
+              style={[styles.checkRow, {
+                paddingVertical: adapt.simpleText ? 14 : 9,
+                gap: adapt.simpleText ? 16 : 10,
+              }]}
               onPress={() => toggleCheck(item.id)}
               activeOpacity={0.7}
             >
-              <View style={[styles.checkbox, checked[item.id] && styles.checkboxChecked]}>
-                {checked[item.id] && <Ionicons name="checkmark" size={14} color="#FFF" />}
-              </View>
-              <Text style={styles.checkEmoji}>{item.emoji}</Text>
-              <Text style={[styles.checkLabel, checked[item.id] && styles.checkLabelDone]}>
-                {item.label}
-              </Text>
+              {/* Pour 4-7 : pas de checkbox, juste l'emoji géant */}
+              {!adapt.simpleText && (
+                <View style={[styles.checkbox, checked[item.id] && styles.checkboxChecked]}>
+                  {checked[item.id] && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                </View>
+              )}
+              <Text style={[
+                styles.checkEmoji,
+                {
+                  fontSize: adapt.simpleText ? 36 : (adapt.detailedView ? 18 : 22),
+                },
+                adapt.simpleText && {
+                  backgroundColor: checked[item.id] ? CHILD_GREEN + '22' : CHILD_BORDER,
+                  borderRadius: 12,
+                  padding: 8,
+                  overflow: 'hidden',
+                },
+              ]}>{item.emoji}</Text>
+              {/* Texte : aucun pour 4-7, simple pour 8-12, complet pour 13-17 */}
+              {adapt.showLabels && (
+                <Text style={[
+                  styles.checkLabel,
+                  checked[item.id] && styles.checkLabelDone,
+                  { fontSize: adapt.simpleText ? 16 : 14 },
+                ]}>
+                  {adapt.detailedView ? t(item.labelKey) : item.emoji + ' ' + t(item.labelKey)}
+                </Text>
+              )}
+              {/* Checkmark visuel pour 4-7 */}
+              {adapt.simpleText && checked[item.id] && (
+                <View style={{ position: 'absolute', right: 0, top: 10 }}>
+                  <Ionicons name="checkmark-circle" size={24} color={CHILD_GREEN} />
+                </View>
+              )}
             </TouchableOpacity>
           ))}
 
-          {/* Barre de progression */}
-          <View style={styles.progressBar}>
+          {/* Barre de progression : géante pour 4-7 */}
+          <View style={[styles.progressBar, adapt.simpleText && { height: 14, borderRadius: 7 }]}>
             <View
               style={[
                 styles.progressFill,
+                adapt.simpleText && { borderRadius: 7 },
                 {
                   width: `${(Object.values(checked).filter(Boolean).length / CHECKLIST_ITEMS.length) * 100}%` as any,
                 },
               ]}
             />
           </View>
-          <Text style={styles.progressText}>
-            {Object.values(checked).filter(Boolean).length} / {CHECKLIST_ITEMS.length} articles
+          <Text style={[styles.progressText, {
+            fontSize: adapt.simpleText ? 16 : 12,
+            fontWeight: adapt.simpleText ? '800' : '600',
+          }]}>
+            {t('child.home.progressItems', {
+              done: Object.values(checked).filter(Boolean).length,
+              total: CHECKLIST_ITEMS.length,
+            })}
           </Text>
         </View>
       </View>
 
       {/* ── Journal privé ── */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Mon journal secret 🔒</Text>
-        <View style={styles.card}>
-          <Text style={styles.journalHint}>Écris ce que tu ressens… personne d'autre ne peut lire ça.</Text>
-          <TextInput
-            style={styles.journalInput}
-            multiline
-            numberOfLines={6}
-            placeholder="Aujourd'hui j'ai…"
-            placeholderTextColor="#C4B5FD"
-            value={journalText}
-            onChangeText={setJournalText}
-            textAlignVertical="top"
-          />
-          <TouchableOpacity
-            style={[styles.saveBtn, journalSaved && styles.saveBtnDone]}
-            onPress={saveJournal}
-          >
-            <Ionicons name={journalSaved ? 'checkmark-circle' : 'save-outline'} size={18} color="#FFF" />
-            <Text style={styles.saveBtnText}>{journalSaved ? 'Sauvegardé !' : 'Sauvegarder'}</Text>
-          </TouchableOpacity>
+      {adapt.simpleText && !adapt.showLabels ? (
+        /* 4-7 ans : dictée vocale (placeholder) à la place du journal */
+        <View style={[styles.section, { marginTop: adapt.spacing }]}>
+          <Text style={[styles.sectionTitle, { fontSize: 16 }]}>{t('child.home.journalTitle')}</Text>
+          <View style={[styles.card, { alignItems: 'center', paddingVertical: 24 }]}>
+            <TouchableOpacity
+              style={{
+                backgroundColor: CHILD_PURPLE,
+                borderRadius: 20,
+                paddingVertical: 20,
+                paddingHorizontal: 32,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 12,
+              }}
+              activeOpacity={0.7}
+              onPress={() => Alert.alert('🎤 Dictée vocale', 'Fonctionnalité à venir (intégration microphone)')}
+            >
+              <Text style={{ fontSize: 40 }}>🎤</Text>
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#FFF' }}>
+                Dire quelque chose
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 13, color: '#9F7AEA', marginTop: 12, fontStyle: 'italic' }}>
+              Appuie pour enregistrer ta pensée
+            </Text>
+          </View>
         </View>
-      </View>
+      ) : (
+        /* 8-12 ans / 13-17 ans : interface journal */
+        <View style={[styles.section, { marginTop: adapt.spacing }]}>
+          <Text style={[styles.sectionTitle, { fontSize: adapt.detailedView ? 14 : 16 }]}>{t('child.home.journalTitle')}</Text>
+          <View style={[styles.card, { padding: adapt.spacing }]}>
+            {adapt.showLabels && (
+              <Text style={[styles.journalHint, { fontSize: adapt.simpleText ? 14 : 12 }]}>{t('child.home.journalHint')}</Text>
+            )}
+            <TextInput
+              style={[
+                styles.journalInput,
+                {
+                  minHeight: adapt.simpleText ? 160 : 130,
+                  fontSize: adapt.simpleText ? 18 : 14,
+                  padding: adapt.simpleText ? 16 : 12,
+                  lineHeight: adapt.simpleText ? 28 : 22,
+                },
+              ]}
+              multiline
+              numberOfLines={adapt.simpleText ? 5 : 6}
+              placeholder={t('child.home.journalPlaceholder')}
+              placeholderTextColor="#C4B5FD"
+              value={journalText}
+              onChangeText={setJournalText}
+              textAlignVertical="top"
+            />
+            <TouchableOpacity
+              style={[styles.saveBtn, {
+                paddingVertical: adapt.simpleText ? 16 : 12,
+                borderRadius: adapt.simpleText ? 14 : 10,
+              }, journalSaved && styles.saveBtnDone]}
+              onPress={saveJournal}
+            >
+              <Ionicons name={journalSaved ? 'checkmark-circle' : 'save-outline'} size={adapt.simpleText ? 22 : 18} color="#FFF" />
+              <Text style={[styles.saveBtnText, { fontSize: adapt.simpleText ? 18 : 14 }]}>
+                {journalSaved ? t('child.home.saved') : t('child.home.save')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
 
     </ScrollView>
   );
@@ -367,4 +544,25 @@ const styles = StyleSheet.create({
   },
   saveBtnDone: { backgroundColor: CHILD_GREEN },
   saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+
+  // Sélecteur d'âge
+  ageSelector: {
+    flexDirection: 'row', justifyContent: 'center', gap: 8,
+    paddingVertical: 10, paddingHorizontal: 16,
+    backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: CHILD_BORDER,
+  },
+  ageBtn: {
+    paddingVertical: 8, paddingHorizontal: 14,
+    borderRadius: 20, backgroundColor: CHILD_LIGHT,
+    borderWidth: 1, borderColor: CHILD_BORDER,
+  },
+  ageBtnActive: {
+    backgroundColor: CHILD_PURPLE, borderColor: CHILD_PURPLE,
+  },
+  ageBtnText: {
+    fontSize: 12, fontWeight: '700', color: CHILD_PURPLE,
+  },
+  ageBtnTextActive: {
+    color: '#FFF',
+  },
 });

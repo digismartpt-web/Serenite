@@ -10,6 +10,8 @@ import DateTimePicker            from '@react-native-community/datetimepicker';
 
 import { useTheme }  from '../context/ThemeContext';
 import { useAuth }   from '../hooks/useAuth';
+import { useTranslation, tList, weekDays, shortMonths } from '../../i18n/useTranslation';
+import { type LangCode } from '../../i18n/translations';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -32,29 +34,23 @@ interface CalEvent {
 
 // ─── Config catégories ────────────────────────────────────────
 
-const CATEGORIES: Record<Category, { label: string; emoji: string; color: string }> = {
-  visite:    { label: 'Garde / Visite',  emoji: '🏠', color: '#1A3A5C' },
-  vacances:  { label: 'Vacances',        emoji: '🌴', color: '#0D5060' },
-  scolaire:  { label: 'École',           emoji: '📚', color: '#4A3580' },
-  medical:   { label: 'Médical',         emoji: '🏥', color: '#8C2B1E' },
-  activite:  { label: 'Activité',        emoji: '⚽', color: '#276749' },
-  autre:     { label: 'Autre',           emoji: '📌', color: '#5A7499' },
+const CATEGORIES: Record<Category, { emoji: string; color: string }> = {
+  visite:    { emoji: '🏠', color: '#1A3A5C' },
+  vacances:  { emoji: '🌴', color: '#0D5060' },
+  scolaire:  { emoji: '📚', color: '#4A3580' },
+  medical:   { emoji: '🏥', color: '#8C2B1E' },
+  activite:  { emoji: '⚽', color: '#276749' },
+  autre:     { emoji: '📌', color: '#5A7499' },
 };
 
 type EventType = 'medical' | 'vacation' | 'school' | 'other';
 
-const EVENT_TYPES: Record<EventType, { label: string; emoji: string }> = {
-  medical:  { label: 'RDV médical',  emoji: '🏥' },
-  vacation: { label: 'Vacances',     emoji: '🌴' },
-  school:   { label: 'École',        emoji: '📚' },
-  other:    { label: 'Autre',        emoji: '📌' },
+const EVENT_TYPES: Record<EventType, { emoji: string }> = {
+  medical:  { emoji: '🏥' },
+  vacation: { emoji: '🌴' },
+  school:   { emoji: '📚' },
+  other:    { emoji: '📌' },
 };
-
-const JOURS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
-const MOIS_FR = [
-  'Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin',
-  'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre',
-];
 
 // ─── Utilitaires date ─────────────────────────────────────────
 
@@ -94,9 +90,10 @@ interface GridProps {
   selectedDay: string | null;
   onDayPress:  (key: string) => void;
   theme:       ReturnType<typeof useTheme>['theme'];
+  lang:        LangCode;
 }
 
-function MonthGrid({ year, month, events, selectedDay, onDayPress, theme }: GridProps) {
+function MonthGrid({ year, month, events, selectedDay, onDayPress, theme, lang }: GridProps) {
   const eventsByDay = useMemo(() => {
     const map = new Map<string, CalEvent[]>();
     for (const ev of events) {
@@ -113,12 +110,13 @@ function MonthGrid({ year, month, events, selectedDay, onDayPress, theme }: Grid
   const total    = daysInMonth(year, month);
   const cells    = offset + total;
   const rows     = Math.ceil(cells / 7);
+  const days     = weekDays(lang);
 
   return (
     <View>
       {/* En-têtes jours */}
       <View style={gridStyles.header}>
-        {JOURS.map((j) => (
+        {days.map((j) => (
           <Text key={j} style={[gridStyles.headerCell, { color: theme.textSecondary }]}>{j}</Text>
         ))}
       </View>
@@ -203,9 +201,11 @@ interface AddEventFormProps {
   onSaved:   () => void;
   onClose:   () => void;
   theme:     ReturnType<typeof useTheme>['theme'];
+  t:         (key: string, vars?: Record<string, string | number>) => string;
+  lang:      LangCode;
 }
 
-function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: AddEventFormProps) {
+function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme, t, lang }: AddEventFormProps) {
   const [title,    setTitle]    = useState('');
   const [category, setCategory] = useState<Category>('visite');
   const [eventType, setEventType] = useState<EventType | null>(null);
@@ -217,7 +217,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
   const [error,    setError]    = useState<string | null>(null);
 
   async function handleSave() {
-    if (!title.trim()) { setError('Le titre est requis'); return; }
+    if (!title.trim()) { setError(t('calendar.titleRequired')); return; }
     setLoading(true); setError(null);
     try {
       const res = await fetch(`${API_BASE}/api/events`, {
@@ -234,9 +234,9 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
           childrenIds: [],
         }),
       });
-      if (!res.ok) { const d = await res.json(); setError(d.error ?? 'Erreur'); return; }
+      if (!res.ok) { const d = await res.json(); setError(d.error ?? t('error')); return; }
       onSaved();
-    } catch { setError('Impossible de contacter le serveur'); }
+    } catch { setError(t('networkError')); }
     finally  { setLoading(false); }
   }
 
@@ -247,7 +247,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
         <View style={formStyles.handle} />
 
         <View style={formStyles.header}>
-          <Text style={[formStyles.title, { color: theme.text }]}>Nouvel événement</Text>
+          <Text style={[formStyles.title, { color: theme.text }]}>{t('calendar.newEvent')}</Text>
           <TouchableOpacity onPress={onClose}>
             <Ionicons name="close" size={24} color={theme.textSecondary} />
           </TouchableOpacity>
@@ -258,17 +258,17 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
           {/* Titre */}
           <TextInput
             style={[formStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
-            placeholder="Titre de l'événement"
+            placeholder={t('calendar.eventTitle')}
             placeholderTextColor={theme.textSecondary}
             value={title}
             onChangeText={setTitle}
           />
 
           {/* Catégorie */}
-          <Text style={[formStyles.label, { color: theme.textSecondary }]}>Catégorie</Text>
+          <Text style={[formStyles.label, { color: theme.textSecondary }]}>{t('calendar.category')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
-              {(Object.keys(CATEGORIES) as Category[]).map((cat) => (
+              {(Object.keys(CATEGORIES) as Category[]).map((cat, idx) => (
                 <TouchableOpacity
                   key={cat}
                   style={[
@@ -280,7 +280,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
                 >
                   <Text style={{ fontSize: 13 }}>{CATEGORIES[cat].emoji}</Text>
                   <Text style={[formStyles.catLabel, { color: category === cat ? '#FFF' : CATEGORIES[cat].color }]}>
-                    {CATEGORIES[cat].label}
+                    {tList('calendar.categories', lang)[idx]}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -288,7 +288,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
           </ScrollView>
 
           {/* Type d'événement (optionnel) */}
-          <Text style={[formStyles.label, { color: theme.textSecondary }]}>Type (optionnel)</Text>
+          <Text style={[formStyles.label, { color: theme.textSecondary }]}>{t('calendar.type')}</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 16 }}>
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <TouchableOpacity
@@ -300,10 +300,10 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
                 onPress={() => setEventType(null)}
               >
                 <Text style={[formStyles.catLabel, { color: eventType === null ? '#FFF' : theme.textSecondary }]}>
-                  Aucun
+                  {t('calendar.none')}
                 </Text>
               </TouchableOpacity>
-              {(Object.keys(EVENT_TYPES) as EventType[]).map((et) => (
+              {(Object.keys(EVENT_TYPES) as EventType[]).map((et, idx) => (
                 <TouchableOpacity
                   key={et}
                   style={[
@@ -315,7 +315,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
                 >
                   <Text style={{ fontSize: 13 }}>{EVENT_TYPES[et].emoji}</Text>
                   <Text style={[formStyles.catLabel, { color: eventType === et ? '#FFF' : theme.textSecondary }]}>
-                    {EVENT_TYPES[et].label}
+                    {tList('calendar.types', lang)[idx]}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -324,7 +324,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
 
           {/* Journée entière */}
           <View style={formStyles.switchRow}>
-            <Text style={[formStyles.label, { color: theme.text, marginBottom: 0 }]}>Journée entière</Text>
+            <Text style={[formStyles.label, { color: theme.text, marginBottom: 0 }]}>{t('calendar.fullDay')}</Text>
             <Switch
               value={allDay}
               onValueChange={setAllDay}
@@ -336,7 +336,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
           {/* Dates */}
           <View style={formStyles.dateRow}>
             <View style={{ flex: 1 }}>
-              <Text style={[formStyles.label, { color: theme.textSecondary }]}>Début</Text>
+              <Text style={[formStyles.label, { color: theme.textSecondary }]}>{t('calendar.start')}</Text>
               <TouchableOpacity
                 style={[formStyles.dateBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
                 onPress={() => setShowPicker('startDate')}
@@ -360,7 +360,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
             <Ionicons name="arrow-forward" size={16} color={theme.textSecondary} style={{ marginTop: 28 }} />
 
             <View style={{ flex: 1 }}>
-              <Text style={[formStyles.label, { color: theme.textSecondary }]}>Fin</Text>
+              <Text style={[formStyles.label, { color: theme.textSecondary }]}>{t('calendar.end')}</Text>
               <TouchableOpacity
                 style={[formStyles.dateBtn, { borderColor: theme.border, backgroundColor: theme.background }]}
                 onPress={() => setShowPicker('endDate')}
@@ -401,7 +401,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
           )}
           {Platform.OS === 'ios' && showPicker && (
             <TouchableOpacity onPress={() => setShowPicker(null)} style={formStyles.pickerClose}>
-              <Text style={{ color: theme.primary, fontWeight: '700' }}>OK</Text>
+              <Text style={{ color: theme.primary, fontWeight: '700' }}>{t('ok')}</Text>
             </TouchableOpacity>
           )}
 
@@ -422,7 +422,7 @@ function AddEventForm({ familyId, token, initDate, onSaved, onClose, theme }: Ad
           {loading ? <ActivityIndicator color="#FFF" /> : (
             <>
               <Ionicons name="checkmark" size={18} color="#FFF" />
-              <Text style={formStyles.saveBtnText}>Enregistrer</Text>
+              <Text style={formStyles.saveBtnText}>{t('save')}</Text>
             </>
           )}
         </TouchableOpacity>
@@ -470,6 +470,7 @@ export default function CalendarScreen() {
   const insets        = useSafeAreaInsets();
   const { theme }     = useTheme();
   const { token, user } = useAuth();
+  const { t, lang }   = useTranslation();
 
   const today      = new Date();
   const [year,  setYear]   = useState(today.getFullYear());
@@ -528,12 +529,12 @@ export default function CalendarScreen() {
 
       {/* ─ Header ─ */}
       <View style={[styles.header, { backgroundColor: theme.headerBg, paddingTop: insets.top + 8 }]}>
-        <Text style={styles.headerTitle}>Agenda</Text>
+        <Text style={styles.headerTitle}>{t('calendar.title')}</Text>
         <TouchableOpacity
           style={styles.headerBtn}
           onPress={() => { setYear(today.getFullYear()); setMonth(today.getMonth()); setSelectedDay(isoDateKey(today)); }}
         >
-          <Text style={styles.headerBtnText}>Aujourd'hui</Text>
+          <Text style={styles.headerBtnText}>{t('calendar.today')}</Text>
         </TouchableOpacity>
       </View>
 
@@ -545,7 +546,7 @@ export default function CalendarScreen() {
             <Ionicons name="chevron-back" size={20} color={theme.primary} />
           </TouchableOpacity>
           <Text style={[styles.monthLabel, { color: theme.text }]}>
-            {MOIS_FR[month]} {year}
+            {shortMonths(lang)[month]} {year}
           </Text>
           <TouchableOpacity onPress={nextMonth} style={styles.navBtn}>
             <Ionicons name="chevron-forward" size={20} color={theme.primary} />
@@ -565,6 +566,7 @@ export default function CalendarScreen() {
               selectedDay={selectedDay}
               onDayPress={setSelectedDay}
               theme={theme}
+              lang={lang}
             />
           )}
         </View>
@@ -579,12 +581,14 @@ export default function CalendarScreen() {
             {dayEvents.length === 0 ? (
               <View style={[styles.emptyDay, { borderColor: theme.border }]}>
                 <Text style={{ fontSize: 32 }}>📅</Text>
-                <Text style={[styles.emptyDayText, { color: theme.textSecondary }]}>Aucun événement</Text>
+                <Text style={[styles.emptyDayText, { color: theme.textSecondary }]}>{t('calendar.noEvents')}</Text>
               </View>
             ) : (
               dayEvents.map((ev) => {
                 const cat = CATEGORIES[ev.category];
                 const evColor = ev.color ?? cat.color;
+                const catIndex = (Object.keys(CATEGORIES) as Category[]).indexOf(ev.category);
+                const catLabel = tList('calendar.categories', lang)[catIndex];
                 return (
                   <View
                     key={ev.id}
@@ -596,13 +600,13 @@ export default function CalendarScreen() {
                         <Text style={[styles.eventTitle, { color: theme.text }]}>{ev.title}</Text>
                         <Text style={[styles.eventMeta, { color: theme.textSecondary }]}>
                           {ev.all_day
-                            ? 'Toute la journée'
+                            ? t('calendar.allDay')
                             : `${formatHour(ev.start_at)} – ${formatHour(ev.end_at)}`}
                           {' · '}{ev.creator_first_name}
                         </Text>
                       </View>
                       <View style={[styles.catBadge, { backgroundColor: evColor + '22', borderColor: evColor }]}>
-                        <Text style={[styles.catBadgeText, { color: evColor }]}>{cat.label}</Text>
+                        <Text style={[styles.catBadgeText, { color: evColor }]}>{catLabel}</Text>
                       </View>
                     </View>
                     {ev.description && (
@@ -620,7 +624,7 @@ export default function CalendarScreen() {
           <View style={styles.centered}>
             <Text style={{ fontSize: 48 }}>👨‍👩‍👧</Text>
             <Text style={[styles.noFamilyText, { color: theme.textSecondary }]}>
-              Invitez votre coparent pour{'\n'}partager l'agenda.
+              {t('calendar.noFamily')}
             </Text>
           </View>
         )}
@@ -632,7 +636,7 @@ export default function CalendarScreen() {
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: theme.primary, bottom: insets.bottom + 20 }]}
           onPress={() => setShowForm(true)}
-          accessibilityLabel="Ajouter un événement"
+          accessibilityLabel={t('calendar.newEvent')}
         >
           <Ionicons name="add" size={28} color="#FFF" />
         </TouchableOpacity>
@@ -648,6 +652,8 @@ export default function CalendarScreen() {
             onSaved={() => { setShowForm(false); loadEvents(year, month); }}
             onClose={() => setShowForm(false)}
             theme={theme}
+            t={t}
+            lang={lang}
           />
         )}
       </Modal>

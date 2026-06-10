@@ -17,6 +17,7 @@ import {
 
 import { useTheme } from '../context/ThemeContext';
 import { useAuth }  from '../hooks/useAuth';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -61,6 +62,7 @@ export default function VoiceScreen() {
   const insets        = useSafeAreaInsets();
   const { theme }     = useTheme();
   const { token, user } = useAuth();
+  const { t }         = useTranslation();
 
   const [phase,         setPhase]         = useState<Phase>('idle');
   const [familyId,      setFamilyId]      = useState<string | null>(null);
@@ -144,7 +146,7 @@ export default function VoiceScreen() {
     try {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
-        setError('Permission micro nécessaire pour enregistrer');
+        setError(t('voice.err.micPermission'));
         return;
       }
 
@@ -158,7 +160,7 @@ export default function VoiceScreen() {
       recorder.record();
       setPhase('recording');
     } catch (err) {
-      setError("Impossible d'accéder au micro");
+      setError(t('voice.err.micAccess'));
       setPhase('idle');
     }
   }
@@ -171,7 +173,7 @@ export default function VoiceScreen() {
       await recorder.stop();
       // Le callback de statusListener gère la suite (uploadAudio)
     } catch (err) {
-      setError("Erreur lors de l'arrêt de l'enregistrement");
+      setError(t('voice.err.stopError'));
       setPhase('idle');
     }
   }
@@ -198,7 +200,7 @@ export default function VoiceScreen() {
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? 'Erreur de transcription');
+        setError(data.error ?? t('voice.err.transcription'));
         setPhase('idle');
         return;
       }
@@ -206,7 +208,7 @@ export default function VoiceScreen() {
       setTranscribed(data.transcribedText);
       setPhase('review');
     } catch (err) {
-      setError("Impossible de transcrire l'audio. Vérifiez votre connexion.");
+      setError(t('voice.err.transcriptionNet'));
       setPhase('idle');
     }
   }
@@ -229,7 +231,7 @@ export default function VoiceScreen() {
 
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error ?? 'Erreur de reformulation');
+        setError(data.error ?? t('voice.err.reformulation'));
         setPhase('review');
         return;
       }
@@ -237,7 +239,7 @@ export default function VoiceScreen() {
       setReformulated(data.reformulatedText);
       setPhase('review');
     } catch {
-      setError('Impossible de reformuler. Vérifiez votre connexion.');
+      setError(t('voice.err.reformulationNet'));
       setPhase('review');
     }
   }
@@ -268,14 +270,14 @@ export default function VoiceScreen() {
 
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error ?? "Erreur lors de l'envoi");
+        setError(data.error ?? t('voice.err.send'));
         return;
       }
 
       // Retour à l'accueil après envoi réussi
       router.back();
     } catch {
-      setError("Impossible d'envoyer. Vérifiez votre connexion.");
+      setError(t('voice.err.sendNet'));
     } finally {
       setSending(false);
     }
@@ -298,11 +300,11 @@ export default function VoiceScreen() {
         <TouchableOpacity
           style={styles.backBtn}
           onPress={() => router.back()}
-          accessibilityLabel="Retour"
+          accessibilityLabel={t('back')}
         >
           <Ionicons name="chevron-down" size={24} color="#FFFFFF" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Messagerie vocale</Text>
+        <Text style={styles.headerTitle}>{t('voice.title')}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -316,7 +318,7 @@ export default function VoiceScreen() {
           <View style={styles.sectionHeader}>
             <Ionicons name="mic" size={18} color={phase === 'recording' ? '#E53E3E' : theme.text} />
             <Text style={[styles.sectionLabel, { color: theme.text }]}>
-              {phase === 'recording' ? 'Enregistrement en cours…' : 'Enregistrement vocal'}
+              {phase === 'recording' ? t('voice.recordingInProgress') : t('voice.recording')}
             </Text>
           </View>
 
@@ -331,7 +333,7 @@ export default function VoiceScreen() {
               onPressIn={handleStartRecording}
               onPressOut={handleStopRecording}
               disabled={phase !== 'idle' && phase !== 'recording'}
-              accessibilityLabel={phase === 'recording' ? 'Relâcher pour arrêter' : 'Appuyer pour enregistrer'}
+              accessibilityLabel={phase === 'recording' ? t('voice.releaseToStop') : t('voice.pressToRecord')}
               accessibilityRole="button"
               activeOpacity={0.7}
             >
@@ -350,10 +352,10 @@ export default function VoiceScreen() {
             {/* Indicateur "Appuyer / Relâcher" */}
             <Text style={[styles.hintText, { color: theme.textSecondary }]}>
               {phase === 'recording'
-                ? 'Relâchez pour arrêter l\'enregistrement'
+                ? t('voice.releaseToStop')
                 : phase === 'uploading'
-                ? 'Transcription en cours…'
-                : 'Appuyez et maintenez pour enregistrer'}
+                ? t('voice.transcribing')
+                : t('voice.holdToRecord')}
             </Text>
           </View>
 
@@ -377,7 +379,7 @@ export default function VoiceScreen() {
             <View style={styles.section}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="document-text-outline" size={16} color={theme.text} />
-                <Text style={[styles.sectionLabel, { color: theme.text }]}>Texte transcrit</Text>
+                <Text style={[styles.sectionLabel, { color: theme.text }]}>{t('voice.transcribedText')}</Text>
               </View>
 
               <View style={styles.transcriptZone}>
@@ -389,9 +391,9 @@ export default function VoiceScreen() {
                   numberOfLines={4}
                   textAlignVertical="top"
                   editable={phase === 'review'}
-                  placeholder="Aucun texte transcrit"
+                  placeholder={t('voice.noText')}
                   placeholderTextColor="#A0AEC0"
-                  accessibilityLabel="Texte transcrit"
+                  accessibilityLabel={t('voice.transcribedText')}
                 />
               </View>
             </View>
@@ -417,16 +419,16 @@ export default function VoiceScreen() {
               <View style={styles.sectionHeader}>
                 <View style={styles.aiBadge}>
                   <Ionicons name="sparkles" size={11} color="#276749" />
-                  <Text style={styles.aiBadgeText}>IA — CNV</Text>
+                  <Text style={styles.aiBadgeText}>{t('voice.aiCnvBadge')}</Text>
                 </View>
-                <Text style={[styles.sectionLabel, { color: theme.text }]}>Message reformulé</Text>
+                <Text style={[styles.sectionLabel, { color: theme.text }]}>{t('voice.reformulatedMessage')}</Text>
               </View>
 
               <View style={styles.reformulatedZone}>
                 {phase === 'reformulating' ? (
                   <View style={styles.loadingRow}>
                     <ActivityIndicator color="#276749" />
-                    <Text style={styles.loadingText}>Reformulation en cours…</Text>
+                    <Text style={styles.loadingText}>{t('voice.reformulating')}</Text>
                   </View>
                 ) : (
                   <Text style={styles.reformulatedText}>{reformulated}</Text>
@@ -462,10 +464,10 @@ export default function VoiceScreen() {
                 setReformulated('');
                 setError(null);
               }}
-              accessibilityLabel="Recommencer"
+              accessibilityLabel={t('voice.restart')}
             >
               <Ionicons name="refresh" size={16} color={theme.textSecondary} />
-              <Text style={[styles.actionBtnGhostText, { color: theme.textSecondary }]}>Recommencer</Text>
+              <Text style={[styles.actionBtnGhostText, { color: theme.textSecondary }]}>{t('voice.restart')}</Text>
             </TouchableOpacity>
 
             {/* Reformuler CNV */}
@@ -474,10 +476,10 @@ export default function VoiceScreen() {
                 style={[styles.actionBtnPrimary, { backgroundColor: theme.primary }]}
                 onPress={handleReformulate}
                 disabled={!transcribed.trim()}
-                accessibilityLabel="Reformuler avec la CNV"
+                accessibilityLabel={t('voice.reformulate')}
               >
                 <Ionicons name="sparkles" size={18} color="#FFFFFF" />
-                <Text style={styles.actionBtnPrimaryText}>Reformuler CNV</Text>
+                <Text style={styles.actionBtnPrimaryText}>{t('voice.reformulateBtn')}</Text>
               </TouchableOpacity>
             )}
 
@@ -489,14 +491,14 @@ export default function VoiceScreen() {
               ]}
               onPress={handleSend}
               disabled={!familyId || sending}
-              accessibilityLabel="Envoyer le message"
+              accessibilityLabel={t('voice.send')}
             >
               {sending ? (
                 <ActivityIndicator size="small" color="#FFFFFF" />
               ) : (
                 <>
                   <Ionicons name="send" size={16} color="#FFFFFF" />
-                  <Text style={styles.actionBtnSendText}>Envoyer</Text>
+                  <Text style={styles.actionBtnSendText}>{t('voice.sendBtn')}</Text>
                 </>
               )}
             </TouchableOpacity>

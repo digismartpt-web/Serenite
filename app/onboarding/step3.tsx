@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 
+import { useTranslation } from '../../i18n/useTranslation';
 import { useOnboarding, ParentType, ParentStatus } from '../../contexts/OnboardingContext';
 
 // ─── Données ──────────────────────────────────────────────────
@@ -27,6 +28,7 @@ const MAX_CHILDREN = 10;
 export default function Step3Screen() {
   const router          = useRouter();
   const { data, patch } = useOnboarding();
+  const { t }           = useTranslation();
 
   const [parentType, setParentType] = useState<ParentType | undefined>(data.parentType);
   const [status,     setStatus]     = useState<ParentStatus | undefined>(data.parentStatus);
@@ -61,14 +63,14 @@ export default function Step3Screen() {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.pageTitle}>Votre situation</Text>
+      <Text style={styles.pageTitle}>{t('step3.title')}</Text>
       <Text style={styles.pageSubtitle}>
-        Ces informations nous permettent de personnaliser votre expérience
+        {t('step3.subtitle')}
       </Text>
 
       {/* ─ Lien de parenté ─ */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Vous êtes…</Text>
+        <Text style={styles.sectionTitle}>{t('step3.parentType')}</Text>
         <View style={styles.roleGrid}>
           {PARENT_TYPES.map((item) => {
             const isSelected = parentType === item.value;
@@ -83,7 +85,7 @@ export default function Step3Screen() {
               >
                 <Text style={styles.roleEmoji}>{item.emoji}</Text>
                 <Text style={[styles.roleLabel, isSelected && styles.roleLabelSelected]}>
-                  {item.label}
+                  {t('step3.parentType.' + item.value)}
                 </Text>
               </TouchableOpacity>
             );
@@ -93,7 +95,7 @@ export default function Step3Screen() {
 
       {/* ─ Statut ─ */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Votre statut</Text>
+        <Text style={styles.sectionTitle}>{t('step3.status')}</Text>
         <View style={styles.statusCol}>
           {STATUSES.map((item) => {
             const isSelected = status === item.value;
@@ -111,9 +113,9 @@ export default function Step3Screen() {
                 </View>
                 <View style={styles.statusTexts}>
                   <Text style={[styles.statusLabel, isSelected && styles.statusLabelSelected]}>
-                    {item.label}
+                    {t('step3.status.' + item.value)}
                   </Text>
-                  <Text style={styles.statusDesc}>{item.desc}</Text>
+                  <Text style={styles.statusDesc}>{t('step3.status.' + item.value + 'Desc')}</Text>
                 </View>
               </TouchableOpacity>
             );
@@ -123,28 +125,28 @@ export default function Step3Screen() {
 
       {/* ─ Nombre d'enfants ─ */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Nombre d'enfants</Text>
+        <Text style={styles.sectionTitle}>{t('step3.childrenCount')}</Text>
         <View style={styles.counter}>
           <TouchableOpacity
             style={[styles.counterBtn, count <= MIN_CHILDREN && styles.counterBtnDisabled]}
             onPress={decrement}
             disabled={count <= MIN_CHILDREN}
-            accessibilityLabel="Diminuer"
+            accessibilityLabel={t('step3.decrease')}
             accessibilityRole="button"
           >
             <Text style={styles.counterBtnText}>−</Text>
           </TouchableOpacity>
 
-          <View style={styles.counterDisplay} accessibilityLabel={`${count} enfant${count > 1 ? 's' : ''}`}>
+          <View style={styles.counterDisplay} accessibilityLabel={`${count} ${t(count === 1 ? 'step3.child' : 'step3.children')}`}>
             <Text style={styles.counterValue}>{count}</Text>
-            <Text style={styles.counterUnit}>enfant{count > 1 ? 's' : ''}</Text>
+            <Text style={styles.counterUnit}>{t(count === 1 ? 'step3.child' : 'step3.children')}</Text>
           </View>
 
           <TouchableOpacity
             style={[styles.counterBtn, count >= MAX_CHILDREN && styles.counterBtnDisabled]}
             onPress={increment}
             disabled={count >= MAX_CHILDREN}
-            accessibilityLabel="Augmenter"
+            accessibilityLabel={t('step3.increase')}
             accessibilityRole="button"
           >
             <Text style={styles.counterBtnText}>+</Text>
@@ -161,12 +163,12 @@ export default function Step3Screen() {
         accessibilityRole="button"
         accessibilityState={{ disabled: !canContinue }}
       >
-        <Text style={styles.primaryBtnText}>Continuer</Text>
+        <Text style={styles.primaryBtnText}>{t('continue')}</Text>
       </TouchableOpacity>
 
       {!canContinue && (
         <Text style={styles.hintText}>
-          Sélectionnez votre rôle et votre statut pour continuer
+          {t('step3.helpText')}
         </Text>
       )}
     </ScrollView>

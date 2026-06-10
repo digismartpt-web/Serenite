@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, StyleSheet,
   ScrollView, Platform, KeyboardAvoidingView,
@@ -10,8 +10,9 @@ import { z } from 'zod';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { useOnboarding } from '../../contexts/OnboardingContext';
+import { useTranslation } from '../../i18n/useTranslation';
 
-// ─── Schéma Zod ───────────────────────────────────────────────
+// ─── Schéma Zod (fabrique avec traduction) ────────────────────
 
 function calcAge(date: Date): number {
   const today = new Date();
@@ -21,35 +22,37 @@ function calcAge(date: Date): number {
   return age;
 }
 
-const IdentitySchema = z.object({
-  firstName: z
-    .string({ required_error: 'Prénom requis' })
-    .min(2, 'Minimum 2 caractères')
-    .max(100)
-    .trim(),
-  lastName: z
-    .string({ required_error: 'Nom requis' })
-    .min(2, 'Minimum 2 caractères')
-    .max(100)
-    .trim(),
-  email: z
-    .string({ required_error: 'Email requis' })
-    .email('Adresse email invalide')
-    .transform((v) => v.toLowerCase().trim()),
-  phone: z
-    .string({ required_error: 'Téléphone requis' })
-    .transform((v) => v.replace(/[\s\-()./ ]/g, ''))
-    .refine((v) => /^\+?\d{7,15}$/.test(v), 'Format : +336****5678 ou 0612345678'),
-  address: z.string().max(500).trim().optional(),
-  birthDate: z
-    .date({ required_error: 'Date de naissance requise' })
-    .refine(
-      (d) => calcAge(d) >= 18,
-      'Vous devez avoir au moins 18 ans pour vous inscrire'
-    ),
-});
+function getIdentitySchema(t: (key: string, opts?: Record<string, unknown>) => string) {
+  return z.object({
+    firstName: z
+      .string({ required_error: t('step2.err.firstNameReq') })
+      .min(2, t('minChars', { n: 2 }))
+      .max(100)
+      .trim(),
+    lastName: z
+      .string({ required_error: t('step2.err.lastNameReq') })
+      .min(2, t('minChars', { n: 2 }))
+      .max(100)
+      .trim(),
+    email: z
+      .string({ required_error: t('step2.err.emailReq') })
+      .email(t('step2.err.emailInvalid'))
+      .transform((v) => v.toLowerCase().trim()),
+    phone: z
+      .string({ required_error: t('step2.err.phoneReq') })
+      .transform((v) => v.replace(/[\s\-()./ ]/g, ''))
+      .refine((v) => /^\+?\d{7,15}$/.test(v), t('step2.err.phoneFormat')),
+    address: z.string().max(500).trim().optional(),
+    birthDate: z
+      .date({ required_error: t('step2.err.birthDateReq') })
+      .refine(
+        (d) => calcAge(d) >= 18,
+        t('step2.err.ageUnder18')
+      ),
+  });
+}
 
-type FormData = z.infer<typeof IdentitySchema>;
+type FormData = z.infer<ReturnType<typeof getIdentitySchema>>;
 
 // ─── Helpers d'affichage ──────────────────────────────────────
 
@@ -104,8 +107,11 @@ function inputStyle(value: string | undefined, hasError: boolean) {
 export default function Step2Screen() {
   const router          = useRouter();
   const { data, patch } = useOnboarding();
+  const { t } = useTranslation();
 
   const [showDatePicker, setShowDatePicker] = useState(false);
+
+  const schema = useMemo(() => getIdentitySchema(t), [t]);
 
   const {
     control,
@@ -113,7 +119,7 @@ export default function Step2Screen() {
     watch,
     formState: { errors, isSubmitting },
   } = useForm<FormData>({
-    resolver: zodResolver(IdentitySchema),
+    resolver: zodResolver(schema),
     defaultValues: {
       firstName: data.firstName || undefined,
       lastName:  data.lastName  || undefined,
@@ -149,13 +155,13 @@ export default function Step2Screen() {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.pageTitle}>Votre identité</Text>
+        <Text style={styles.pageTitle}>{t('step2.title')}</Text>
         <Text style={styles.pageSubtitle}>
-          Ces informations restent privées et sécurisées
+          {t('step2.subtitle')}
         </Text>
 
         {/* ─ Prénom ─ */}
-        <Field label="Prénom" required error={errors.firstName?.message}>
+        <Field label={t('step2.firstName')} required error={errors.firstName?.message}>
           <Controller
             control={control}
             name="firstName"
@@ -165,18 +171,18 @@ export default function Step2Screen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
-                placeholder="Ex : Thomas"
+                placeholder={t('step2.firstNamePH')}
                 placeholderTextColor="#A0AEC0"
                 autoCapitalize="words"
                 returnKeyType="next"
-                accessibilityLabel="Prénom"
+                accessibilityLabel={t('step2.firstName')}
               />
             )}
           />
         </Field>
 
         {/* ─ Nom ─ */}
-        <Field label="Nom" required error={errors.lastName?.message}>
+        <Field label={t('step2.lastName')} required error={errors.lastName?.message}>
           <Controller
             control={control}
             name="lastName"
@@ -186,18 +192,18 @@ export default function Step2Screen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
-                placeholder="Ex : Durand"
+                placeholder={t('step2.lastNamePH')}
                 placeholderTextColor="#A0AEC0"
                 autoCapitalize="words"
                 returnKeyType="next"
-                accessibilityLabel="Nom"
+                accessibilityLabel={t('step2.lastName')}
               />
             )}
           />
         </Field>
 
         {/* ─ Email ─ */}
-        <Field label="Adresse email" required error={errors.email?.message}>
+        <Field label={t('step2.email')} required error={errors.email?.message}>
           <Controller
             control={control}
             name="email"
@@ -207,20 +213,20 @@ export default function Step2Screen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
-                placeholder="exemple@email.com"
+                placeholder={t('step2.emailPH')}
                 placeholderTextColor="#A0AEC0"
                 keyboardType="email-address"
                 autoCapitalize="none"
                 autoComplete="email"
                 returnKeyType="next"
-                accessibilityLabel="Adresse email"
+                accessibilityLabel={t('step2.email')}
               />
             )}
           />
         </Field>
 
         {/* ─ Téléphone ─ */}
-        <Field label="Téléphone" required error={errors.phone?.message}>
+        <Field label={t('step2.phone')} required error={errors.phone?.message}>
           <Controller
             control={control}
             name="phone"
@@ -230,18 +236,18 @@ export default function Step2Screen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
-                placeholder="+33 6 12 34 56 78"
+                placeholder={t('step2.phonePH')}
                 placeholderTextColor="#A0AEC0"
                 keyboardType="phone-pad" inputMode="tel"
                 returnKeyType="next"
-                accessibilityLabel="Numéro de téléphone"
+                accessibilityLabel={t('step2.phone')}
               />
             )}
           />
         </Field>
 
         {/* ─ Adresse ─ */}
-        <Field label="Adresse postale" error={errors.address?.message}>
+        <Field label={t('step2.address')} error={errors.address?.message}>
           <Controller
             control={control}
             name="address"
@@ -251,20 +257,20 @@ export default function Step2Screen() {
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
-                placeholder="12 rue de la Paix, 75001 Paris (optionnel)"
+                placeholder={t('step2.addressPH')}
                 placeholderTextColor="#A0AEC0"
                 autoCapitalize="words"
                 multiline
                 numberOfLines={2}
                 returnKeyType="next"
-                accessibilityLabel="Adresse postale"
+                accessibilityLabel={t('step2.address')}
               />
             )}
           />
         </Field>
 
         {/* ─ Date de naissance ─ */}
-        <Field label="Date de naissance" required error={errors.birthDate?.message}>
+        <Field label={t('step2.birthDate')} required error={errors.birthDate?.message}>
           <Controller
             control={control}
             name="birthDate"
@@ -281,14 +287,14 @@ export default function Step2Screen() {
                     ]}
                     onPress={() => setShowDatePicker(true)}
                     accessibilityRole="button"
-                    accessibilityLabel={value ? `Date : ${formatDate(value)}` : 'Choisir une date'}
+                    accessibilityLabel={value ? t('step2.dateAria', { date: formatDate(value) }) : t('step2.pickDate')}
                   >
                     <Text style={[styles.dateBtnText, !value && styles.dateBtnPlaceholder]}>
-                      {value ? formatDate(value) : 'JJ / MM / AAAA'}
+                      {value ? formatDate(value) : t('step2.birthDatePH')}
                     </Text>
                     {displayAge !== null && displayAge >= 18 && (
                       <View style={styles.ageChip}>
-                        <Text style={styles.ageChipText}>{displayAge} ans</Text>
+                        <Text style={styles.ageChipText}>{t('step2.age', { age: displayAge })}</Text>
                       </View>
                     )}
                   </TouchableOpacity>
@@ -332,7 +338,7 @@ export default function Step2Screen() {
                     style={styles.dateConfirmBtn}
                     onPress={() => setShowDatePicker(false)}
                   >
-                    <Text style={styles.dateConfirmBtnText}>Confirmer</Text>
+                    <Text style={styles.dateConfirmBtnText}>{t('confirm')}</Text>
                   </TouchableOpacity>
                 )}
               </>
@@ -349,7 +355,7 @@ export default function Step2Screen() {
           accessibilityRole="button"
         >
           <Text style={styles.primaryBtnText}>
-            {isSubmitting ? 'Vérification…' : 'Continuer'}
+            {isSubmitting ? t('step2.verifying') : t('continue')}
           </Text>
         </TouchableOpacity>
       </ScrollView>

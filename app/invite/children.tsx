@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -51,6 +52,11 @@ interface ChildForm {
   saved: boolean;
   saving: boolean;
   error: string | null;
+  childPin: string;
+  childEmail: string;
+  activationMessage: string | null;
+  accountCreated: boolean;
+  familyAccessCode: string;
 }
 
 function defaultChild(): ChildForm {
@@ -64,12 +70,18 @@ function defaultChild(): ChildForm {
     saved: false,
     saving: false,
     error: null,
+    childPin: '',
+    childEmail: '',
+    activationMessage: null,
+    accountCreated: false,
+    familyAccessCode: '',
   };
 }
 
 export default function ChildrenScreen() {
   const router    = useRouter();
   const authToken = useAuthToken();
+  const { t }     = useTranslation();
 
   // numChildren vient de l'étape d'inscription précédente (passé via params ou context)
   const { numChildren: numParam } = useLocalSearchParams<{ numChildren?: string }>();
@@ -100,7 +112,7 @@ export default function ChildrenScreen() {
   async function saveChild(index: number) {
     const form = forms[index];
     if (!form.firstName.trim()) {
-      update(index, 'error', 'Le prénom est requis');
+      update(index, 'error', t('invite.children.err.firstNameReq'));
       return;
     }
 
@@ -108,31 +120,52 @@ export default function ChildrenScreen() {
     update(index, 'error', null);
 
     try {
+      const body: Record<string, unknown> = {
+        firstName:              form.firstName.trim(),
+        birthDate:              form.birthDate.toISOString().split('T')[0],
+        calendarColor:          form.calendarColor,
+        calendarColorText:      form.calendarColorText,
+        createAutonomousAccess: form.createAutonomousAccess,
+      };
+
+      if (form.childPin && calcAge(form.birthDate) < 12) {
+        body.childPin = form.childPin;
+      }
+
+      if (form.childEmail && calcAge(form.birthDate) >= 15) {
+        body.childEmail = form.childEmail;
+      }
+
       const res = await fetch(`${API_BASE}/api/families/children`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${authToken}`,
         },
-        body: JSON.stringify({
-          firstName:              form.firstName.trim(),
-          birthDate:              form.birthDate.toISOString().split('T')[0],
-          calendarColor:          form.calendarColor,
-          calendarColorText:      form.calendarColorText,
-          createAutonomousAccess: form.createAutonomousAccess,
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        update(index, 'error', data.error ?? 'Erreur serveur');
+        update(index, 'error', data.error ?? t('invite.children.err.server'));
         return;
+      }
+
+      // Store activation message (12-14 ans) or account created flag (15-17 ans)
+      if (data.activationMessage) {
+        update(index, 'activationMessage', data.activationMessage);
+      }
+      if (data.familyAccessCode) {
+        update(index, 'familyAccessCode', data.familyAccessCode);
+      }
+      if (data.childAccountCreated === true) {
+        update(index, 'accountCreated', true);
       }
 
       update(index, 'saved', true);
     } catch {
-      update(index, 'error', 'Impossible de contacter le serveur');
+      update(index, 'error', t('networkError'));
     } finally {
       update(index, 'saving', false);
     }
@@ -150,9 +183,9 @@ export default function ChildrenScreen() {
       keyboardShouldPersistTaps="handled"
     >
       {/* En-tête */}
-      <Text style={styles.pageTitle}>Vos enfants</Text>
+      <Text style={styles.pageTitle}>{t('invite.children.title')}</Text>
       <Text style={styles.pageSubtitle}>
-        Ajoutez les profils pour personnaliser le calendrier partagé
+        {t('invite.children.subtitle')}
       </Text>
 
       {/* Progression */}
@@ -165,7 +198,7 @@ export default function ChildrenScreen() {
         />
       </View>
       <Text style={styles.progressLabel}>
-        {savedCount} enfant{savedCount !== 1 ? 's' : ''} ajouté{savedCount !== 1 ? 's' : ''} sur {numChildren}
+        {t('invite.children.progress', { saved: savedCount, total: numChildren, s: savedCount !== 1 ? 's' : '' })}
       </Text>
 
       {/* Formulaires enfants */}
@@ -187,7 +220,7 @@ export default function ChildrenScreen() {
         activeOpacity={0.85}
       >
         <Text style={styles.finishBtnText}>
-          {finishing ? 'Chargement…' : 'Terminer →'}
+          {finishing ? t('settings.loading') : t('invite.children.finish')}
         </Text>
       </TouchableOpacity>
     </ScrollView>
@@ -207,8 +240,12 @@ function ChildCard({
   onUpdate: <K extends keyof ChildForm>(key: K, val: ChildForm[K]) => void;
   onSave: () => void;
 }) {
+  const { t }   = useTranslation();
   const age      = calcAge(form.birthDate);
   const isOver12 = age >= 12;
+  const isUnder12 = age < 12;
+  const is12to14 = age >= 12 && age < 15;
+  const is15to17 = age >= 15;
 
   return (
     <View style={[styles.card, form.saved && styles.cardSaved]}>
@@ -218,22 +255,45 @@ function ChildCard({
           <Text style={styles.indexBadgeText}>{index + 1}</Text>
         </View>
         <Text style={styles.cardTitle}>
-          {form.saved ? `✓  ${form.firstName}` : `Enfant ${index + 1}`}
+          {form.saved ? `✓  ${form.firstName}` : t('invite.children.childNumber', { n: index + 1 })}
         </Text>
       </View>
 
       {form.saved ? (
-        <Text style={styles.savedLabel}>Profil enregistré</Text>
+        <>
+          <Text style={styles.savedLabel}>{t('invite.children.saved')}</Text>
+
+          {/* Activation banner (12-14 ans) */}
+          {is12to14 && form.activationMessage && (
+            <View style={styles.activationBanner}>
+              <Text style={styles.activationBannerTitle}>📱 Code d'activation</Text>
+              <Text style={styles.activationCode}>{form.familyAccessCode}</Text>
+              <Text style={styles.activationMessage}>{form.activationMessage}</Text>
+            </View>
+          )}
+
+          {/* Account created success (15-17 ans) */}
+          {is15to17 && form.accountCreated && (
+            <View style={styles.accountCreatedBanner}>
+              <Text style={styles.accountCreatedText}>✅ Compte autonome créé</Text>
+            </View>
+          )}
+
+          {/* PIN reminder (4-11 ans) */}
+          {isUnder12 && form.childPin && (
+            <Text style={styles.pinSavedText}>🔐 Code secret enregistré</Text>
+          )}
+        </>
       ) : (
         <>
           {/* Prénom */}
           <View style={styles.field}>
-            <Text style={styles.label}>Prénom *</Text>
+            <Text style={styles.label}>{t('invite.children.firstName')}</Text>
             <TextInput
               style={styles.input}
               value={form.firstName}
               onChangeText={(v) => onUpdate('firstName', v)}
-              placeholder="Ex : Emma"
+              placeholder={t('invite.children.firstNamePH')}
               placeholderTextColor="#A0AEC0"
               autoCapitalize="words"
               returnKeyType="next"
@@ -242,13 +302,13 @@ function ChildCard({
 
           {/* Date de naissance */}
           <View style={styles.field}>
-            <Text style={styles.label}>Date de naissance *</Text>
+            <Text style={styles.label}>{t('invite.children.birthDate')}</Text>
             <TouchableOpacity
               style={styles.dateButton}
               onPress={() => onUpdate('showDatePicker', !form.showDatePicker)}
             >
               <Text style={styles.dateButtonText}>{formatDate(form.birthDate)}</Text>
-              <Text style={styles.dateAgeChip}>{age} an{age !== 1 ? 's' : ''}</Text>
+              <Text style={styles.dateAgeChip}>{t('invite.children.age', { age, s: age !== 1 ? 's' : '' })}</Text>
             </TouchableOpacity>
 
             {form.showDatePicker && (
@@ -267,9 +327,26 @@ function ChildCard({
             )}
           </View>
 
+          {/* PIN 4 chiffres (4-11 ans) */}
+          {isUnder12 && (
+            <View style={styles.field}>
+              <Text style={styles.label}>Code secret (4 chiffres)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="****"
+                placeholderTextColor="#A0AEC0"
+                maxLength={4}
+                keyboardType="number-pad"
+                secureTextEntry
+                value={form.childPin}
+                onChangeText={(v) => onUpdate('childPin', v.replace(/[^0-9]/g, '').slice(0, 4))}
+              />
+            </View>
+          )}
+
           {/* Couleur calendrier */}
           <View style={styles.field}>
-            <Text style={styles.label}>Couleur du calendrier</Text>
+            <Text style={styles.label}>{t('invite.children.calendarColor')}</Text>
             <View style={styles.swatchRow}>
               {COLOR_SWATCHES.map((swatch) => (
                 <TouchableOpacity
@@ -292,14 +369,14 @@ function ChildCard({
             </View>
           </View>
 
-          {/* Accès autonome (≥ 12 ans) */}
+          {/* Accès autonome (≥ 12 ans uniquement — caché pour 4-11 ans) */}
           {isOver12 && (
             <View style={styles.field}>
               <View style={styles.autonomousRow}>
                 <View style={styles.autonomousTexts}>
-                  <Text style={styles.label}>Accès autonome</Text>
+                  <Text style={styles.label}>{t('invite.children.autonomousAccess')}</Text>
                   <Text style={styles.autonomousSub}>
-                    Crée un code à 8 chiffres pour que {form.firstName || "l'enfant"} accède à son espace
+                    {t('invite.children.autonomousDesc', { name: form.firstName || t('invite.children.theChild') })}
                   </Text>
                 </View>
                 <Switch
@@ -309,6 +386,25 @@ function ChildCard({
                   thumbColor="#FFFFFF"
                 />
               </View>
+
+              {/* Email de l'enfant (15-17 ans, si switch activé) */}
+              {is15to17 && form.createAutonomousAccess && (
+                <View style={styles.emailField}>
+                  <Text style={styles.label}>Email de l'enfant</Text>
+                  <TextInput
+                    style={[styles.input, form.childEmail && !form.childEmail.includes('@') && styles.inputError]}
+                    placeholder="enfant@email.fr"
+                    placeholderTextColor="#A0AEC0"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    value={form.childEmail}
+                    onChangeText={(v) => onUpdate('childEmail', v)}
+                  />
+                  {form.childEmail && !form.childEmail.includes('@') && (
+                    <Text style={styles.emailErrorText}>Veuillez entrer un email valide</Text>
+                  )}
+                </View>
+              )}
             </View>
           )}
 
@@ -326,8 +422,8 @@ function ChildCard({
           >
             <Text style={styles.addBtnText}>
               {form.saving
-                ? 'Enregistrement…'
-                : `Ajouter ${form.firstName.trim() || 'cet enfant'}`}
+                ? t('invite.children.saving')
+                : t('invite.children.add', { name: form.firstName.trim() || t('invite.children.thisChild') })}
             </Text>
           </TouchableOpacity>
         </>
@@ -494,6 +590,61 @@ const styles = StyleSheet.create({
   },
   errorText: {
     fontSize: 13,
+    color: '#E53E3E',
+  },
+  activationBanner: {
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 14,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#FDE68A',
+    marginTop: 4,
+  },
+  activationBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  activationCode: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1A3A5C',
+    letterSpacing: 2,
+    textAlign: 'center',
+  },
+  activationMessage: {
+    fontSize: 13,
+    color: '#92400E',
+    lineHeight: 18,
+  },
+  accountCreatedBanner: {
+    backgroundColor: '#D1FAE5',
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 4,
+  },
+  accountCreatedText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#065F46',
+    textAlign: 'center',
+  },
+  pinSavedText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#276749',
+    marginTop: 4,
+  },
+  emailField: {
+    marginTop: 10,
+    gap: 6,
+  },
+  inputError: {
+    borderColor: '#FC8181',
+  },
+  emailErrorText: {
+    fontSize: 12,
     color: '#E53E3E',
   },
   addBtn: {

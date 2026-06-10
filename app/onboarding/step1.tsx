@@ -1,44 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet,
   ScrollView, Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { useOnboarding } from '../../contexts/OnboardingContext';
-
-// ─── Langues disponibles ──────────────────────────────────────
-
-const LANGUAGES = [
-  { code: 'fr', label: 'Français',    flag: '🇫🇷' },
-  { code: 'es', label: 'Español',     flag: '🇪🇸' },
-  { code: 'pt', label: 'Português',   flag: '🇵🇹' },
-  { code: 'en', label: 'English',     flag: '🇬🇧' },
-] as const;
-
-const LANG_KEY = '@serenite/language';
+import { LANGUAGES } from '../../i18n/translations';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function Step1Screen() {
-  const router           = useRouter();
-  const { data, patch }  = useOnboarding();
-  const [selected, setSelected] = useState<string>(data.language);
+  const router = useRouter();
+  const { t, lang, setLang, restoreLang } = useTranslation();
 
-  // Restaurer la langue précédemment choisie
-  useEffect(() => {
-    AsyncStorage.getItem(LANG_KEY).then((saved) => {
-      if (saved) {
-        setSelected(saved);
-        patch({ language: saved });
-      }
-    });
-  }, []);
-
-  async function handleSelectLanguage(code: string) {
-    setSelected(code);
-    patch({ language: code });
-    await AsyncStorage.setItem(LANG_KEY, code);
-  }
+  useEffect(() => { restoreLang(); }, []);
 
   function handleContinue() {
     router.push('/onboarding/step2');
@@ -55,30 +29,30 @@ export default function Step1Screen() {
         <View style={styles.logoCircle}>
           <Text style={styles.logoEmoji}>🕊️</Text>
         </View>
-        <Text style={styles.appName}>Sérénité</Text>
-        <Text style={styles.tagline}>L'application de coparentalité apaisée</Text>
+        <Text style={styles.appName}>{t('onboarding.title')}</Text>
+        <Text style={styles.tagline}>{t('onboarding.tagline')}</Text>
       </View>
 
       {/* Sélection de langue */}
       <View style={styles.section}>
-        <Text style={styles.sectionLabel}>Choisissez votre langue</Text>
+        <Text style={styles.sectionLabel}>{t('onboarding.chooseLanguage')}</Text>
 
         <View style={styles.langGrid}>
-          {LANGUAGES.map((lang) => {
-            const isSelected = selected === lang.code;
+          {LANGUAGES.map((l) => {
+            const isSelected = lang === l.code;
             return (
               <TouchableOpacity
-                key={lang.code}
+                key={l.code}
                 style={[styles.langBtn, isSelected && styles.langBtnSelected]}
-                onPress={() => handleSelectLanguage(lang.code)}
+                onPress={() => setLang(l.code)}
                 activeOpacity={0.8}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: isSelected }}
-                accessibilityLabel={lang.label}
+                accessibilityLabel={l.label}
               >
-                <Text style={styles.langFlag}>{lang.flag}</Text>
+                <Text style={styles.langFlag}>{l.flag}</Text>
                 <Text style={[styles.langLabel, isSelected && styles.langLabelSelected]}>
-                  {lang.label}
+                  {l.label}
                 </Text>
                 {isSelected && <View style={styles.langCheck} />}
               </TouchableOpacity>
@@ -93,20 +67,20 @@ export default function Step1Screen() {
         onPress={handleContinue}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel="Commencer l'inscription"
+        accessibilityLabel={t('onboarding.startRegistration')}
       >
-        <Text style={styles.primaryBtnText}>Commencer</Text>
+        <Text style={styles.primaryBtnText}>{t('onboarding.start')}</Text>
       </TouchableOpacity>
 
       {/* Lien connexion */}
       <Text style={styles.loginHint}>
-        Déjà un compte ?{' '}
+        {t('onboarding.alreadyAccount')}{' '}
         <Text
           style={styles.loginLink}
           onPress={() => router.push('/auth/login')}
           accessibilityRole="link"
         >
-          Se connecter
+          {t('onboarding.login')}
         </Text>
       </Text>
     </ScrollView>
@@ -121,8 +95,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 28,
   },
-
-  // ── Hero ──────────────────────────────────────────────────────
   hero: {
     alignItems: 'center',
     marginTop: 24,
@@ -156,8 +128,6 @@ const styles = StyleSheet.create({
     textAlign:  'center',
     lineHeight: 22,
   },
-
-  // ── Section langue ────────────────────────────────────────────
   section: {
     alignSelf: 'stretch',
     gap: 12,
@@ -187,6 +157,7 @@ const styles = StyleSheet.create({
     borderColor:    '#D8DCE6',
     backgroundColor: '#FFFFFF',
     minWidth:       140,
+    cursor:         'pointer',
     ...Platform.select({
       ios:     { shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 3 },
       android: { elevation: 1 },
@@ -215,8 +186,6 @@ const styles = StyleSheet.create({
     borderRadius:    4,
     backgroundColor: '#1D9E75',
   },
-
-  // ── Bouton ────────────────────────────────────────────────────
   primaryBtn: {
     alignSelf:       'stretch',
     backgroundColor: '#1A3A5C',

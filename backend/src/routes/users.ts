@@ -160,4 +160,29 @@ router.delete(
   }
 );
 
+// ─── DELETE /api/users/account ───────────────────────────────
+// Supprime complètement le compte utilisateur (CASCADE)
+
+router.delete(
+  '/account',
+  requireAuth,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    const userId = req.user!.id;
+    const { confirm } = req.body as { confirm?: boolean };
+
+    if (!confirm) {
+      res.status(400).json({ error: 'Confirmation requise' });
+      return;
+    }
+
+    try {
+      await query('DELETE FROM users WHERE id = $1', [userId]);
+      res.json({ success: true, message: 'Compte supprimé' });
+    } catch (err) {
+      console.error('DELETE /users/account:', err);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  }
+);
+
 export default router;

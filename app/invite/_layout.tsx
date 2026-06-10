@@ -1,29 +1,33 @@
+import React from 'react';
 import { Stack } from 'expo-router';
+import { useTranslation } from '../../i18n/useTranslation';
 
 export default function InviteLayout() {
+  const { t } = useTranslation();
+
   return (
     <Stack
       screenOptions={{
         headerStyle:      { backgroundColor: '#F7F9FC' },
         headerTintColor:  '#1A3A5C',
         headerTitleStyle: { fontWeight: '700', fontSize: 17 },
-        headerBackTitle:  'Retour',
+        headerBackTitle:  t('back'),
         contentStyle:     { backgroundColor: '#F7F9FC' },
       }}
     >
       <Stack.Screen
         name="send"
-        options={{ title: 'Inviter le coparent' }}
+        options={{ title: t('invite.inviteCoparent') }}
       />
       <Stack.Screen
         name="join"
-        options={{ title: 'Rejoindre la famille' }}
+        options={{ title: t('invite.title') }}
       />
       <Stack.Screen
         name="children"
         options={{
-          title: 'Ajouter les enfants',
-          headerBackVisible: false,   // étape obligatoire, pas de retour
+          title: t('invite.addChildren'),
+          headerBackVisible: false,
         }}
       />
     </Stack>

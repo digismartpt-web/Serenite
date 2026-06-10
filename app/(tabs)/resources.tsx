@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '../context/ThemeContext';
 import { useAuth }  from '../hooks/useAuth';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -48,11 +49,12 @@ const DEFAULT_LANG: LanguageCode = 'fr';
 // ─── Sections ─────────────────────────────────────────────────
 
 function EmergencySection({
-  contacts, theme, insets,
+  contacts, theme, insets, t,
 }: {
   contacts: EmergencyContact[];
   theme: ReturnType<typeof useTheme>['theme'];
   insets: { bottom: number };
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   if (contacts.length === 0) return null;
 
@@ -63,11 +65,11 @@ function EmergencySection({
           <Ionicons name="alert-circle" size={18} color="#FFFFFF" />
         </View>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          Urgences
+          {t('resources.emergency')}
         </Text>
       </View>
       <Text style={[styles.sectionHint, { color: theme.textSecondary }]}>
-        Appuyez pour appeler directement
+        {t('resources.emergencyHint')}
       </Text>
 
       {contacts.map((contact, index) => (
@@ -76,7 +78,7 @@ function EmergencySection({
           style={[styles.emergencyCard, { borderLeftColor: '#E53E3E' }]}
           onPress={() => Linking.openURL(`tel:${contact.phone}`)}
           activeOpacity={0.8}
-          accessibilityLabel={`Appeler ${contact.name} au ${contact.phone}`}
+          accessibilityLabel={t('resources.emergencyCall', { name: contact.name, phone: contact.phone })}
         >
           <View style={[styles.emergencyIcon, { backgroundColor: '#FED7D7' }]}>
             <Ionicons name="call" size={18} color="#C53030" />
@@ -100,10 +102,11 @@ function EmergencySection({
 }
 
 function MediatorsSection({
-  mediators, theme,
+  mediators, theme, t,
 }: {
   mediators: Mediator[];
   theme: ReturnType<typeof useTheme>['theme'];
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   if (mediators.length === 0) return null;
 
@@ -114,7 +117,7 @@ function MediatorsSection({
           <Ionicons name="people" size={18} color="#FFFFFF" />
         </View>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          Médiateurs familiaux
+          {t('resources.mediators')}
         </Text>
       </View>
 
@@ -140,11 +143,11 @@ function MediatorsSection({
           <TouchableOpacity
             style={[styles.websiteBtn, { borderColor: theme.primary }]}
             onPress={() => Linking.openURL(mediator.website)}
-            accessibilityLabel={`Site web ${mediator.name}`}
+            accessibilityLabel={t('resources.websiteAria', { name: mediator.name })}
           >
             <Ionicons name="globe-outline" size={16} color={theme.primary} />
             <Text style={[styles.websiteBtnText, { color: theme.primary }]}>
-              Site
+              {t('resources.website')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -154,10 +157,11 @@ function MediatorsSection({
 }
 
 function ResourcesSection({
-  resources, theme,
+  resources, theme, t,
 }: {
   resources: WebResource[];
   theme: ReturnType<typeof useTheme>['theme'];
+  t: (key: string, vars?: Record<string, string | number>) => string;
 }) {
   if (resources.length === 0) return null;
 
@@ -168,7 +172,7 @@ function ResourcesSection({
           <Ionicons name="globe" size={18} color="#FFFFFF" />
         </View>
         <Text style={[styles.sectionTitle, { color: theme.text }]}>
-          Ressources en ligne
+          {t('resources.onlineResources')}
         </Text>
       </View>
 
@@ -178,7 +182,7 @@ function ResourcesSection({
           style={[styles.resourceCard, { backgroundColor: theme.surface, borderColor: theme.border }]}
           onPress={() => Linking.openURL(resource.website)}
           activeOpacity={0.8}
-          accessibilityLabel={`Ouvrir ${resource.name}`}
+          accessibilityLabel={t('resources.openResource', { name: resource.name })}
         >
           <View style={[styles.resourceIcon, { backgroundColor: theme.surfaceAlt }]}>
             <Ionicons name="link" size={16} color={theme.textSecondary} />
@@ -199,6 +203,7 @@ export default function ResourcesScreen() {
   const insets = useSafeAreaInsets();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t } = useTranslation();
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<ResourcesData | null>(null);
@@ -231,10 +236,10 @@ export default function ResourcesScreen() {
       <View style={styles.header}>
         <View>
           <Text style={[styles.headerTitle, { color: theme.text }]}>
-            🆘  Ressources
+            {t('resources.headerTitle')}
           </Text>
           <Text style={[styles.headerSub, { color: theme.textSecondary }]}>
-            Aide et médiation familiale
+            {t('resources.headerSub')}
           </Text>
         </View>
       </View>
@@ -243,14 +248,14 @@ export default function ResourcesScreen() {
         <View style={styles.loading}>
           <ActivityIndicator size="large" color={theme.primary} />
           <Text style={[styles.loadingText, { color: theme.textSecondary }]}>
-            Chargement…
+            {t('settings.loading')}
           </Text>
         </View>
       ) : (
         <>
-          <EmergencySection contacts={data?.emergency ?? []} theme={theme} insets={insets} />
-          <MediatorsSection mediators={data?.mediators ?? []} theme={theme} />
-          <ResourcesSection resources={data?.resources ?? []} theme={theme} />
+          <EmergencySection contacts={data?.emergency ?? []} theme={theme} insets={insets} t={t} />
+          <MediatorsSection mediators={data?.mediators ?? []} theme={theme} t={t} />
+          <ResourcesSection resources={data?.resources ?? []} theme={theme} t={t} />
         </>
       )}
     </ScrollView>

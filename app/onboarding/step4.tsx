@@ -13,6 +13,7 @@ const LocalAuthentication = Platform.OS === 'web'
 
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import CodeInput         from '../../components/invite/CodeInput';
+import { useTranslation } from '../../i18n/useTranslation';
 
 // ─── Clés SecureStore ─────────────────────────────────────────
 const SECURE_PIN_KEY        = 'serenite_biometric_pin';
@@ -24,6 +25,7 @@ type Phase = 'create' | 'confirm' | 'biometrics';
 export default function Step4Screen() {
   const router          = useRouter();
   const { patch }       = useOnboarding();
+  const { t }           = useTranslation();
 
   const [phase,       setPhase]       = useState<Phase>('create');
   const [firstPin,    setFirstPin]    = useState('');
@@ -78,7 +80,7 @@ export default function Step4Screen() {
   // ── Phase 2 : confirmation du PIN ─────────────────────────
   function handlePinConfirmed(confirmedPin: string) {
     if (confirmedPin !== firstPin) {
-      setError('Les codes ne correspondent pas. Recommencez la confirmation.');
+      setError(t('step4.mismatch'));
       shake();
       // Réinitialiser uniquement la saisie de confirmation
       setConfirmKey((k) => k + 1);
@@ -101,8 +103,8 @@ export default function Step4Screen() {
     if (!LocalAuthentication) { router.push('/onboarding/step5'); return; }
     try {
       const result = await LocalAuthentication.authenticateAsync({
-        promptMessage:  `Activer ${biometricType} pour Sérénité`,
-        fallbackLabel:  'Utiliser le code PIN',
+        promptMessage:  t('step4.pinPrompt', { type: biometricType }),
+        fallbackLabel:  t('step4.pinFallback'),
         cancelLabel:    'Annuler',
       });
 
@@ -142,10 +144,10 @@ export default function Step4Screen() {
             {biometricType === 'Face ID' ? '🔐' : '👆'}
           </Text>
           <Text style={styles.biometricsTitle}>
-            Activer {biometricType} ?
+            {t('step4.enableBiometrics', { type: biometricType })}
           </Text>
           <Text style={styles.biometricsSubtitle}>
-            Connectez-vous en un instant, sans ressaisir votre code à chaque ouverture.
+            {t('step4.biometricsDesc')}
           </Text>
 
           <TouchableOpacity
@@ -153,7 +155,7 @@ export default function Step4Screen() {
             onPress={handleEnableBiometrics}
             activeOpacity={0.85}
           >
-            <Text style={styles.primaryBtnText}>Activer {biometricType}</Text>
+            <Text style={styles.primaryBtnText}>{t('step4.biometricsBtn', { type: biometricType })}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -161,7 +163,7 @@ export default function Step4Screen() {
             onPress={handleSkipBiometrics}
             activeOpacity={0.75}
           >
-            <Text style={styles.ghostBtnText}>Continuer sans</Text>
+            <Text style={styles.ghostBtnText}>{t('step4.skipBiometrics')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -179,12 +181,12 @@ export default function Step4Screen() {
       <View style={styles.hero}>
         <Text style={styles.lockEmoji}>🔒</Text>
         <Text style={styles.pageTitle}>
-          {isConfirm ? 'Confirmez votre code' : 'Créez votre code secret'}
+          {isConfirm ? t('step4.confirmTitle') : t('step4.title')}
         </Text>
         <Text style={styles.pageSubtitle}>
           {isConfirm
-            ? 'Saisissez à nouveau le même code pour valider'
-            : 'Ce code à 6 chiffres protège votre espace'}
+            ? t('step4.confirmInstr')
+            : t('step4.instruction')}
         </Text>
       </View>
 
@@ -222,7 +224,7 @@ export default function Step4Screen() {
           onPress={isConfirm ? () => handlePinConfirmed(currentCode) : () => handlePinCreated(currentCode)}
           activeOpacity={0.85}
         >
-          <Text style={styles.primaryBtnText}>Continuer</Text>
+          <Text style={styles.primaryBtnText}>{t('continue')}</Text>
         </TouchableOpacity>
       )}
 
@@ -233,14 +235,14 @@ export default function Step4Screen() {
           onPress={handleRestartCreation}
           activeOpacity={0.75}
         >
-          <Text style={styles.ghostBtnText}>Choisir un autre code</Text>
+          <Text style={styles.ghostBtnText}>{t('step4.chooseOther')}</Text>
         </TouchableOpacity>
       )}
 
       {/* Note sécurité */}
       <View style={styles.securityNote}>
         <Text style={styles.securityNoteText}>
-          🛡️  Votre code est chiffré et ne quitte jamais votre appareil
+          🛡️  {t('step4.securityNote')}
         </Text>
       </View>
     </ScrollView>

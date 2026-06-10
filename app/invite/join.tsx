@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 
 import CodeInput from '../../components/invite/CodeInput';
 import { useAuth } from '../hooks/useAuth';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
@@ -21,6 +22,7 @@ type State = 'idle' | 'loading' | 'success' | 'error';
 export default function JoinScreen() {
   const router     = useRouter();
   const { token: authToken } = useAuth();
+  const { t } = useTranslation();
   // Le token peut être passé via deep link (serenite://join/[token])
   const { token: deepLinkToken } = useLocalSearchParams<{ token?: string }>();
 
@@ -66,7 +68,7 @@ export default function JoinScreen() {
       const data = await res.json();
 
       if (!res.ok) {
-        setErrorMsg(data.error ?? 'Erreur lors de la connexion');
+        setErrorMsg(data.error ?? t('invite.error.connection'));
         setState('error');
 
         // Petite vibration d'erreur (animation shake)
@@ -88,7 +90,7 @@ export default function JoinScreen() {
         router.replace('/invite/children');
       });
     } catch {
-      setErrorMsg('Impossible de contacter le serveur. Vérifiez votre connexion.');
+      setErrorMsg(t('invite.error.network'));
       setState('error');
     }
   }, [authToken]);
@@ -107,7 +109,7 @@ export default function JoinScreen() {
           <Text style={styles.successIcon}>✓</Text>
         </Animated.View>
         <Animated.Text style={[styles.successText, { opacity: successAnim }]}>
-          Famille liée avec succès !
+          {t('invite.success')}
         </Animated.Text>
       </View>
     );
@@ -123,9 +125,9 @@ export default function JoinScreen() {
         <Text style={styles.illustrationIcon}>👨‍👩‍👧‍👦</Text>
       </View>
 
-      <Text style={styles.title}>Rejoindre la famille</Text>
+      <Text style={styles.title}>{t('invite.title')}</Text>
       <Text style={styles.subtitle}>
-        Saisissez le code à 6 chiffres{'\n'}partagé par le coparent
+        {t('invite.subtitle')}
       </Text>
 
       {/* Saisie du code */}
@@ -158,21 +160,20 @@ export default function JoinScreen() {
         activeOpacity={0.8}
       >
         <Text style={styles.joinBtnText}>
-          {state === 'loading' ? 'Vérification…' : 'Rejoindre'}
+          {state === 'loading' ? t('invite.verifying') : t('invite.join')}
         </Text>
       </TouchableOpacity>
 
       {/* Séparateur */}
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>ou</Text>
+        <Text style={styles.dividerText}>{t('invite.or')}</Text>
         <View style={styles.dividerLine} />
       </View>
 
       {/* Accès via lien / QR code */}
       <Text style={styles.alternativeText}>
-        Vous avez reçu un lien ? Appuyez dessus directement depuis votre messagerie
-        pour rejoindre automatiquement.
+        {t('invite.alternative')}
       </Text>
     </ScrollView>
   );

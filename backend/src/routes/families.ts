@@ -1,7 +1,7 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { requireAuth, AuthRequest } from '../middleware/auth';
-import { query, queryOne } from '../lib/database';
+import { query, queryOne, withTransaction } from '../lib/database';
 
 const router = Router();
 
@@ -35,12 +35,16 @@ router.post('/children', requireAuth, async (req: AuthRequest, res: Response) =>
     calendarColor     = '#EEEDFE',
     calendarColorText = '#3C3489',
     createAutonomousAccess = false,
+    childPin,
+    childEmail,
   } = req.body as {
     firstName: string;
     birthDate: string;
     calendarColor?: string;
     calendarColorText?: string;
     createAutonomousAccess?: boolean;
+    childPin?: string;
+    childEmail?: string;
   };
 
   if (!firstName || !birthDate) {
@@ -73,6 +77,31 @@ router.post('/children', requireAuth, async (req: AuthRequest, res: Response) =>
       familyAccessCode = generateChildCode();
     }
 
+    // ─── PIN hashing for young children (4-11) ─────────────
+    let pinHash: string | null = null;
+    if (ageYrs < 12 && childPin) {
+      pinHash = await bcrypt.hash(childPin, 12);
+    }
+
+    // ─── Autonomous child account (15-17) ───────────────────
+    let childUserId: string | null = null;
+    let childAccountCreated = false;
+
+    if (ageYrs >= 15 && createAutonomousAccess && childEmail) {
+      const defaultPin = childPin || '1234';
+      const hashedDefaultPin = await bcrypt.hash(defaultPin, 12);
+
+      const newUser = await queryOne<{ id: string }>(
+        `INSERT INTO users (email, first_name, role, pin_hash, children_count)
+         VALUES ($1, $2, 'child', $3, 0)
+         RETURNING id`,
+        [childEmail, firstName, hashedDefaultPin]
+      );
+
+      childUserId = newUser!.id;
+      childAccountCreated = true;
+    }
+
     const child = await queryOne<{
       id: string;
       first_name: string;
@@ -84,8 +113,9 @@ router.post('/children', requireAuth, async (req: AuthRequest, res: Response) =>
     }>(
       `INSERT INTO family_children
          (family_id, first_name, birth_date, calendar_color,
-          calendar_color_text, family_access_code, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+          calendar_color_text, family_access_code, created_by,
+          pin_hash, user_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, first_name, birth_date, age,
                  calendar_color, calendar_color_text, family_access_code`,
       [
@@ -96,12 +126,79 @@ router.post('/children', requireAuth, async (req: AuthRequest, res: Response) =>
         calendarColorText,
         familyAccessCode,
         userId,
+        pinHash,
+        childUserId,
       ]
     );
 
-    res.status(201).json(child);
+    // ─── Build response ─────────────────────────────────────
+    const response: Record<string, unknown> = {
+      id:                  child.id,
+      first_name:          child.first_name,
+      birth_date:          child.birth_date,
+      age:                 child.age,
+      calendar_color:      child.calendar_color,
+      calendar_color_text: child.calendar_color_text,
+    };
+
+    if (familyAccessCode) {
+      response.family_access_code = familyAccessCode;
+    }
+
+    if (ageYrs >= 12 && ageYrs <= 14 && createAutonomousAccess) {
+      response.activation_message =
+        "Partagez ce code avec votre enfant pour qu'il puisse activer son accès autonome";
+    }
+
+    response.child_account_created = childAccountCreated;
+
+    res.status(201).json(response);
   } catch (err) {
     console.error('POST /families/children:', err);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── GET /api/families/children ──────────────────────────────
+// Retourne la liste des enfants de l'utilisateur connecté
+
+router.get('/children', requireAuth, async (req: AuthRequest, res: Response) => {
+  const userId = req.user!.id;
+
+  try {
+    const family = await queryOne<{ id: string }>(
+      `SELECT id FROM families
+       WHERE parent_a_id = $1 OR parent_b_id = $1`,
+      [userId]
+    );
+
+    if (!family) {
+      res.status(404).json({ error: 'Aucune famille trouvée' });
+      return;
+    }
+
+    const children = await query<{
+      id: string;
+      first_name: string;
+      birth_date: string;
+      age: number;
+      calendar_color: string;
+      calendar_color_text: string;
+      family_access_code: string | null;
+      user_id: string | null;
+    }>(
+      `SELECT id, first_name, birth_date, age,
+              calendar_color, calendar_color_text, family_access_code,
+              user_id
+       FROM family_children
+       WHERE family_id = $1
+       ORDER BY birth_date`,
+      [family.id]
+    );
+
+    res.json(children);
+  } catch (err) {
+    console.error('GET /families/children:', err);
     res.status(500).json({ error: 'Erreur serveur' });
   }
 });

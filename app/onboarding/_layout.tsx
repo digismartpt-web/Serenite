@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { OnboardingProvider } from '../../contexts/OnboardingContext';
 import ProgressBar from '../../components/onboarding/ProgressBar';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const TOTAL_STEPS = 5;
 
@@ -21,6 +22,7 @@ function OnboardingHeader() {
   const insets      = useSafeAreaInsets();
   const currentStep = extractStep(pathname);
   const canGoBack   = currentStep > 1;
+  const { t }       = useTranslation();
 
   return (
     <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
@@ -30,22 +32,22 @@ function OnboardingHeader() {
           <TouchableOpacity
             style={styles.backBtn}
             onPress={() => router.back()}
-            accessibilityLabel="Retour"
+            accessibilityLabel={t('back')}
             accessibilityRole="button"
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           >
             <Text style={styles.backChevron}>‹</Text>
-            <Text style={styles.backLabel}>Retour</Text>
+            <Text style={styles.backLabel}>{t('back')}</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.backPlaceholder} />
         )}
 
         <Text style={styles.title} accessibilityRole="header">
-          Sérénité
+          {t('onboarding.title')}
         </Text>
 
-        <Text style={styles.stepCounter} accessibilityLabel={`Étape ${currentStep} sur ${TOTAL_STEPS}`}>
+        <Text style={styles.stepCounter} accessibilityLabel={t('onboarding.step', { n: currentStep })}>
           {currentStep}/{TOTAL_STEPS}
         </Text>
       </View>

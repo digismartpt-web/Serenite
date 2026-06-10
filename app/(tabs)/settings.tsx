@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import {
   View, Text, TouchableOpacity, ScrollView, StyleSheet,
-  Platform, Alert, Switch, ActivityIndicator,
+  Platform, Alert, Switch, ActivityIndicator, Modal, TextInput,
 } from 'react-native';
 import { useRouter }          from 'expo-router';
 import { Ionicons }           from '@expo/vector-icons';
@@ -13,16 +13,17 @@ import AsyncStorage            from '@react-native-async-storage/async-storage';
 
 import { useTheme, THEMES, Theme, ThemeMode } from '../context/ThemeContext';
 import { useAuth }                           from '../hooks/useAuth';
+import { useTranslation }                    from '../../i18n/useTranslation';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 // ─── Types ────────────────────────────────────────────────────
 
 const PARENT_TYPE_LABELS: Record<string, string> = {
-  'papa':       'Papa',
-  'maman':      'Maman',
-  'beau-pere':  'Beau-père',
-  'belle-mere': 'Belle-mère',
+  'papa':       'step3.parentType.papa',
+  'maman':      'step3.parentType.maman',
+  'beau-pere':  'step3.parentType.stepfather',
+  'belle-mere': 'step3.parentType.stepmother',
 };
 
 const PARENT_TYPE_EMOJIS: Record<string, string> = {
@@ -97,10 +98,16 @@ export default function SettingsScreen() {
   const insets       = useSafeAreaInsets();
   const { theme, themeId, setTheme, themeMode, setThemeMode } = useTheme();
   const { user, token, logout }      = useAuth();
+  const { t, lang } = useTranslation();
 
   const [notifications, setNotifications] = useState(true);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [updatingTheme, setUpdatingTheme] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [oldPin, setOldPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [changingPin, setChangingPin] = useState(false);
 
   // ── Avatar initiales ───────────────────────────────────────
   const initials = user
@@ -114,7 +121,7 @@ export default function SettingsScreen() {
         method: 'GET',
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (!res.ok) throw new Error('Erreur serveur');
+      if (!res.ok) throw new Error(t('settings.serverError'));
       const data = await res.json();
       const json = JSON.stringify(data, null, 2);
 
@@ -122,15 +129,15 @@ export default function SettingsScreen() {
       await AsyncStorage.setItem('@serenite/rgpd-export', json);
 
       Alert.alert(
-        'Export réussi',
-        'Vos données personnelles ont été exportées avec succès.\n\n' +
-        `Contenu : ${json.length.toLocaleString('fr-FR')} caractères au format JSON.`,
-        [{ text: 'OK' }]
+        t('settings.exportSuccess'),
+        t('settings.exportSuccessDesc') + '\n\n' +
+        `${t('settings.exportDataDesc')} — ${json.length.toLocaleString(lang === 'pt' ? 'pt-BR' : lang === 'en' ? 'en-US' : lang === 'es' ? 'es-ES' : 'fr-FR')} caractères.`,
+        [{ text: t('ok') }]
       );
     } catch (err) {
       Alert.alert(
-        'Erreur',
-        'Impossible d\'exporter vos données. Vérifiez votre connexion.'
+        t('error'),
+        t('settings.exportErrorDesc')
       );
     }
   }
@@ -138,12 +145,12 @@ export default function SettingsScreen() {
   // ── Déconnexion ────────────────────────────────────────────
   function handleLogout() {
     Alert.alert(
-      'Déconnexion',
-      'Voulez-vous vraiment vous déconnecter ?',
+      t('settings.logoutConfirm'),
+      t('settings.logoutConfirmDesc'),
       [
-        { text: 'Annuler', style: 'cancel' },
+        { text: t('cancel'), style: 'cancel' },
         {
-          text: 'Déconnecter',
+          text: t('settings.logoutAction'),
           style: 'destructive',
           onPress: async () => {
             await logout();
@@ -176,6 +183,63 @@ export default function SettingsScreen() {
     router.push('/child');
   }
 
+  // ── Changer le PIN ──────────────────────────────────────────
+  async function handleChangePin() {
+    if (!oldPin || !newPin || !confirmPin) {
+      Alert.alert(t('error'), 'Veuillez remplir tous les champs.');
+      return;
+    }
+    if (newPin.length !== 6 || !/^\d{6}$/.test(newPin)) {
+      Alert.alert(t('error'), 'Le nouveau PIN doit comporter 6 chiffres.');
+      return;
+    }
+    if (newPin !== confirmPin) {
+      Alert.alert(t('error'), 'Les nouveaux PIN ne correspondent pas.');
+      return;
+    }
+    setChangingPin(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/update-pin`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ currentPin: oldPin, newPin }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors du changement de PIN');
+      }
+      Alert.alert(t('success'), 'Code PIN modifié avec succès.');
+      setShowPinModal(false);
+      setOldPin('');
+      setNewPin('');
+      setConfirmPin('');
+    } catch (err) {
+      Alert.alert(t('error'), err instanceof Error ? err.message : 'Erreur lors du changement de PIN');
+    } finally {
+      setChangingPin(false);
+    }
+  }
+
+  // ── Supprimer le compte ─────────────────────────────────────
+  async function handleDeleteAccount() {
+    try {
+      const res = await fetch(`${API_BASE}/api/users/account`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la suppression du compte');
+      }
+      router.replace('/auth/login');
+    } catch (err) {
+      Alert.alert(t('error'), err instanceof Error ? err.message : 'Erreur lors de la suppression du compte');
+    }
+  }
+
   const adultThemes = Object.values(THEMES).filter((t) => !t.isChildTheme);
   const childThemes = Object.values(THEMES).filter((t) =>  t.isChildTheme);
 
@@ -184,7 +248,7 @@ export default function SettingsScreen() {
 
       {/* ─ Header ─ */}
       <View style={[styles.header, { backgroundColor: theme.headerBg, paddingTop: insets.top + 8 }]}>
-        <Text style={styles.headerTitle}>Profil & Paramètres</Text>
+        <Text style={styles.headerTitle}>{t('settings.title')}</Text>
       </View>
 
       <ScrollView contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
@@ -196,13 +260,13 @@ export default function SettingsScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={[styles.profileName, { color: theme.text }]}>
-              {user ? `${user.firstName} ${user.lastName}` : 'Chargement…'}
+              {user ? `${user.firstName} ${user.lastName}` : t('settings.loading')}
             </Text>
             {user?.parentType && (
               <View style={styles.parentTypeBadge}>
                 <Text style={{ fontSize: 16 }}>{PARENT_TYPE_EMOJIS[user.parentType] ?? '👤'}</Text>
                 <Text style={[styles.parentTypeLabel, { color: theme.primary }]}>
-                  {PARENT_TYPE_LABELS[user.parentType] ?? user.parentType}
+                  {t(PARENT_TYPE_LABELS[user.parentType]) ?? user.parentType}
                 </Text>
               </View>
             )}
@@ -212,50 +276,50 @@ export default function SettingsScreen() {
           </View>
           {user && !user.emailVerified && (
             <View style={styles.unverifiedBadge}>
-              <Text style={styles.unverifiedText}>Email non vérifié</Text>
+              <Text style={styles.unverifiedText}>{t('settings.emailUnverifiedBadge')}</Text>
             </View>
           )}
         </View>
 
         {/* ─ Compte ─ */}
-        <SectionHeader title="Compte" theme={theme} />
+        <SectionHeader title={t('settings.account')} theme={theme} />
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <SettingRow
             icon="person-outline"
-            label="Modifier mon profil"
-            value="Nom, prénom, téléphone"
+            label={t('settings.editProfile')}
+            value={t('settings.editProfileDesc')}
             onPress={() => {}}
             theme={theme}
           />
           <SettingRow
             icon="lock-closed-outline"
-            label="Changer mon code PIN"
-            onPress={() => {}}
+            label={t('settings.changePin')}
+            onPress={() => setShowPinModal(true)}
             theme={theme}
           />
           <SettingRow
             icon="mail-outline"
             label={user?.email ?? ''}
-            value={user?.emailVerified ? 'Adresse vérifiée ✓' : 'Adresse non vérifiée'}
+            value={user?.emailVerified ? t('settings.emailVerified') : t('settings.emailUnverified')}
             iconColor={user?.emailVerified ? '#276749' : '#D97706'}
             theme={theme}
           />
         </View>
 
         {/* ─ Famille ─ */}
-        <SectionHeader title="Famille" theme={theme} />
+        <SectionHeader title={t('settings.family')} theme={theme} />
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <SettingRow
             icon="people-outline"
-            label="Gérer ma famille"
-            value="Coparent, enfants"
+            label={t('settings.manageFamily')}
+            value={t('settings.manageFamilyDesc')}
             onPress={() => router.push('/invite/send')}
             theme={theme}
           />
           <SettingRow
             icon="happy-outline"
-            label="Espace Enfant"
-            value="Interface violet adaptée aux enfants"
+            label={t('settings.childSpace')}
+            value={t('settings.childSpaceDesc')}
             iconColor="#5B3FA0"
             onPress={handleChildSpace}
             theme={theme}
@@ -263,14 +327,14 @@ export default function SettingsScreen() {
         </View>
 
         {/* ─ Apparence ─ */}
-        <SectionHeader title="Apparence" theme={theme} />
+        <SectionHeader title={t('settings.appearance')} theme={theme} />
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           {/* Mode d'affichage */}
           <View style={styles.themeContainer}>
-            <Text style={[styles.themeGroupLabel, { color: theme.textSecondary }]}>Mode d'affichage</Text>
+            <Text style={[styles.themeGroupLabel, { color: theme.textSecondary }]}>{t('settings.displayMode')}</Text>
             <View style={styles.modeRow}>
               {(['auto', 'light', 'dark'] as ThemeMode[]).map((mode) => {
-                const labels: Record<ThemeMode, string> = { auto: 'Auto', light: 'Clair', dark: 'Sombre' };
+                const labels: Record<ThemeMode, string> = { auto: t('settings.modeAuto'), light: t('settings.modeLight'), dark: t('settings.modeDark') };
                 const icons: Record<ThemeMode, string> = { auto: 'phone-portrait-outline', light: 'sunny-outline', dark: 'moon-outline' };
                 const isActive = themeMode === mode;
                 return (
@@ -302,7 +366,7 @@ export default function SettingsScreen() {
           </View>
 
           <View style={styles.themeContainer}>
-            <Text style={[styles.themeGroupLabel, { color: theme.textSecondary }]}>Thèmes adultes</Text>
+            <Text style={[styles.themeGroupLabel, { color: theme.textSecondary }]}>{t('settings.adultThemes')}</Text>
             <View style={styles.themeGrid}>
               {adultThemes.map((t) => (
                 <TouchableOpacity
@@ -325,7 +389,7 @@ export default function SettingsScreen() {
               ))}
             </View>
 
-            <Text style={[styles.themeGroupLabel, { color: theme.textSecondary, marginTop: 12 }]}>Thèmes enfants</Text>
+            <Text style={[styles.themeGroupLabel, { color: theme.textSecondary, marginTop: 12 }]}>{t('settings.childThemes')}</Text>
             <View style={styles.themeGrid}>
               {childThemes.map((t) => (
                 <TouchableOpacity
@@ -351,19 +415,19 @@ export default function SettingsScreen() {
             {updatingTheme && (
               <View style={styles.themeLoading}>
                 <ActivityIndicator size="small" color={theme.primary} />
-                <Text style={[styles.themeLoadingText, { color: theme.textSecondary }]}>Application…</Text>
+                <Text style={[styles.themeLoadingText, { color: theme.textSecondary }]}>{t('settings.applying')}</Text>
               </View>
             )}
           </View>
         </View>
 
         {/* ─ Notifications ─ */}
-        <SectionHeader title="Notifications" theme={theme} />
+        <SectionHeader title={t('home.notifications')} theme={theme} />
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <SettingRow
             icon="notifications-outline"
-            label="Notifications push"
-            value="Nouveaux messages, événements"
+            label={t('settings.pushNotifications')}
+            value={t('settings.pushNotifDesc')}
             theme={theme}
             right={
               <Switch
@@ -377,49 +441,56 @@ export default function SettingsScreen() {
         </View>
 
         {/* ─ Langue ─ */}
-        <SectionHeader title="Langue" theme={theme} />
+        <SectionHeader title={t('settings.language')} theme={theme} />
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <SettingRow
             icon="language-outline"
-            label="Langue de l'application"
-            value={user?.language === 'en' ? 'English' : 'Français'}
+            label={t('settings.appLanguage')}
+            value={{ fr: 'Français', en: 'English', es: 'Español', pt: 'Português' }[user?.language ?? lang] ?? 'Français'}
             onPress={() => {}}
             theme={theme}
           />
         </View>
 
         {/* ─ Confidentialité ─ */}
-        <SectionHeader title="Confidentialité" theme={theme} />
+        <SectionHeader title={t('step5.title')} theme={theme} />
         <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}>
           <SettingRow
             icon="document-text-outline"
-            label="Conditions Générales d'Utilisation"
+            label={t('step5.cgu')}
             onPress={() => {}}
             theme={theme}
           />
           <SettingRow
             icon="shield-checkmark-outline"
-            label="Politique de confidentialité"
+            label={t('settings.privacyPolicy')}
             onPress={() => {}}
             theme={theme}
           />
           <SettingRow
             icon="download-outline"
-            label="Exporter mes données RGPD"
-            value="JSON — toutes mes données personnelles"
+            label={t('settings.exportData')}
+            value={t('settings.exportDataDesc')}
             iconColor="#276749"
             onPress={handleExportData}
             theme={theme}
           />
           <SettingRow
             icon="trash-outline"
-            label="Supprimer mon compte"
+            label={t('settings.deleteAccount')}
             iconColor={theme.danger}
             onPress={() =>
               Alert.alert(
-                'Supprimer le compte',
-                'Cette action est irréversible. Toutes vos données seront effacées.',
-                [{ text: 'Annuler', style: 'cancel' }]
+                t('settings.deleteConfirm'),
+                t('settings.deleteConfirmDesc'),
+                [
+                  { text: t('cancel'), style: 'cancel' },
+                  {
+                    text: 'Supprimer définitivement',
+                    style: 'destructive',
+                    onPress: handleDeleteAccount,
+                  },
+                ]
               )
             }
             theme={theme}
@@ -434,16 +505,99 @@ export default function SettingsScreen() {
             onPress={handleLogout}
           >
             <Ionicons name="log-out-outline" size={20} color={theme.danger} />
-            <Text style={[styles.logoutText, { color: theme.danger }]}>Se déconnecter</Text>
+            <Text style={[styles.logoutText, { color: theme.danger }]}>{t('settings.logout')}</Text>
           </TouchableOpacity>
         </View>
 
         {/* ─ Version ─ */}
         <Text style={[styles.version, { color: theme.textSecondary }]}>
-          Sérénité v1.0.0 — by Premium à juste prix
+          {t('settings.version')}
         </Text>
 
       </ScrollView>
+
+      {/* ─ Modal changement de PIN ─ */}
+      <Modal
+        visible={showPinModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPinModal(false)}
+      >
+        <View style={pinModalStyles.overlay}>
+          <View style={[pinModalStyles.container, { backgroundColor: theme.surface }]}>
+            <Text style={[pinModalStyles.title, { color: theme.text }]}>
+              {t('settings.changePin')}
+            </Text>
+
+            <Text style={[pinModalStyles.label, { color: theme.textSecondary }]}>
+              Ancien code PIN
+            </Text>
+            <TextInput
+              style={[pinModalStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              value={oldPin}
+              onChangeText={setOldPin}
+              secureTextEntry
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="6 chiffres"
+              placeholderTextColor={theme.textSecondary}
+            />
+
+            <Text style={[pinModalStyles.label, { color: theme.textSecondary }]}>
+              Nouveau code PIN
+            </Text>
+            <TextInput
+              style={[pinModalStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              value={newPin}
+              onChangeText={setNewPin}
+              secureTextEntry
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="6 chiffres"
+              placeholderTextColor={theme.textSecondary}
+            />
+
+            <Text style={[pinModalStyles.label, { color: theme.textSecondary }]}>
+              Confirmer le nouveau PIN
+            </Text>
+            <TextInput
+              style={[pinModalStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background }]}
+              value={confirmPin}
+              onChangeText={setConfirmPin}
+              secureTextEntry
+              keyboardType="number-pad"
+              maxLength={6}
+              placeholder="6 chiffres"
+              placeholderTextColor={theme.textSecondary}
+            />
+
+            <View style={pinModalStyles.buttons}>
+              <TouchableOpacity
+                style={[pinModalStyles.cancelBtn, { borderColor: theme.border }]}
+                onPress={() => {
+                  setShowPinModal(false);
+                  setOldPin('');
+                  setNewPin('');
+                  setConfirmPin('');
+                }}
+              >
+                <Text style={[pinModalStyles.cancelText, { color: theme.textSecondary }]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[pinModalStyles.confirmBtn, { backgroundColor: theme.primary }]}
+                onPress={handleChangePin}
+                disabled={changingPin}
+              >
+                {changingPin ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={pinModalStyles.confirmText}>Confirmer</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -534,4 +688,67 @@ const styles = StyleSheet.create({
   logoutText: { fontSize: 15, fontWeight: '700' },
 
   version: { fontSize: 11, textAlign: 'center', marginTop: 20, marginBottom: 8 },
+});
+
+const pinModalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  container: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 24,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+    marginTop: 12,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    fontSize: 16,
+    textAlign: 'center',
+    letterSpacing: 4,
+  },
+  buttons: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 24,
+  },
+  cancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cancelText: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  confirmBtn: {
+    flex: 1,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  confirmText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFF',
+  },
 });

@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 const SecureStore = typeof window !== 'undefined' && window.localStorage
   ? { getItemAsync: async (k) => { try { return localStorage.getItem(k) } catch(e) { return null } }, setItemAsync: async (k, v) => { try { localStorage.setItem(k, v) } catch(e) {} } }
   : require('expo-secure-store');
+import { useTranslation } from '../../i18n/useTranslation';
 
 // ─── Constantes ───────────────────────────────────────────────
 
@@ -53,6 +54,7 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
   const [pin, setPin]     = useState('');
   const [error, setError] = useState('');
   const shake = useRef(new Animated.Value(0)).current;
+  const { t } = useTranslation();
 
   function doShake() {
     Vibration.vibrate(300);
@@ -84,7 +86,7 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
       } else if (saved === next) {
         onSuccess();
       } else {
-        setError('Code incorrect');
+        setError(t('child.pin.incorrectCode'));
         doShake();
         setPin('');
       }
@@ -103,8 +105,8 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
       {/* Logo */}
       <View style={pinStyles.logoArea}>
         <Text style={pinStyles.logoEmoji}>🦄</Text>
-        <Text style={pinStyles.logoTitle}>Espace Enfant</Text>
-        <Text style={pinStyles.logoSub}>Entre ton code secret</Text>
+        <Text style={pinStyles.logoTitle}>{t('child.pin.title')}</Text>
+        <Text style={pinStyles.logoSub}>{t('child.pin.subtitle')}</Text>
       </View>
 
       {/* Points */}
@@ -127,7 +129,7 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
       </View>
 
       <Text style={pinStyles.hint}>
-        {!pin && 'La première fois, ton code sera créé automatiquement'}
+        {!pin && t('child.pin.firstTimeHint')}
       </Text>
     </View>
   );
@@ -154,7 +156,7 @@ export default function ChildLayout() {
       <Stack.Screen
         name="home"
         options={{
-          title: 'Mon Espace',
+          title: t('child.pin.mySpace'),
           headerLeft: () => null,   // pas de retour depuis home
         }}
       />

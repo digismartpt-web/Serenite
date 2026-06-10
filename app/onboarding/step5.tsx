@@ -10,6 +10,7 @@ const SecureStore = typeof window !== 'undefined' && window.localStorage
   : require('expo-secure-store');
 
 import { useOnboarding } from '../../contexts/OnboardingContext';
+import { useTranslation } from '../../i18n/useTranslation';
 
 // ─── Config ────────────────────────────────────────────────────
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
@@ -35,6 +36,7 @@ type RegisterError =
 export default function Step5Screen() {
   const router           = useRouter();
   const { data, reset }  = useOnboarding();
+  const { t } = useTranslation();
 
   const [consents, setConsents] = useState<ConsentState>({
     cgu:          false,
@@ -139,21 +141,21 @@ export default function Step5Screen() {
       contentContainerStyle={styles.container}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.pageTitle}>Confidentialité</Text>
+      <Text style={styles.pageTitle}>{t('step5.title')}</Text>
       <Text style={styles.pageSubtitle}>
-        Lisez et acceptez les conditions avant de créer votre compte
+        {t('step5.subtitle')}
       </Text>
 
       {/* ─ Consentements obligatoires ─ */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Obligatoires</Text>
+        <Text style={styles.sectionTitle}>{t('step5.mandatory')}</Text>
 
         <ConsentRow
           checked={consents.cgu}
           onToggle={() => toggle('cgu')}
-          title="Conditions Générales d'Utilisation"
-          description="J'ai lu et j'accepte les CGU de l'application Sérénité."
-          link="Lire les CGU"
+          title={t('step5.cgu')}
+          description={t('step5.cguDesc')}
+          link={t('step5.readCgu')}
           onLinkPress={() => { /* TODO: ouvrir WebBrowser */ }}
           required
         />
@@ -161,9 +163,9 @@ export default function Step5Screen() {
         <ConsentRow
           checked={consents.dataProcess}
           onToggle={() => toggle('dataProcess')}
-          title="Traitement des données personnelles"
-          description="J'accepte que mes données soient traitées conformément à la politique de confidentialité."
-          link="Lire la politique"
+          title={t('step5.dataPrivacy')}
+          description={t('step5.dataPrivacyDesc')}
+          link={t('step5.readPolicy')}
           onLinkPress={() => { /* TODO */ }}
           required
         />
@@ -171,21 +173,21 @@ export default function Step5Screen() {
         <ConsentRow
           checked={consents.childrenData}
           onToggle={() => toggle('childrenData')}
-          title="Données relatives aux enfants"
-          description="Je consens au traitement des données de mes enfants dans le respect du RGPD."
+          title={t('step5.childrenData')}
+          description={t('step5.childrenDataDesc')}
           required
         />
       </View>
 
       {/* ─ Consentement optionnel ─ */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Optionnel</Text>
+        <Text style={styles.sectionTitle}>{t('optional')}</Text>
 
         <ConsentRow
           checked={consents.newsletter}
           onToggle={() => toggle('newsletter')}
-          title="Newsletter & conseils"
-          description="Recevez des conseils de coparentalité et les nouveautés de l'application."
+          title={t('step5.newsletter')}
+          description={t('step5.newsletterDesc')}
         />
       </View>
 
@@ -203,26 +205,26 @@ export default function Step5Screen() {
         activeOpacity={0.85}
         accessibilityRole="button"
         accessibilityState={{ disabled: !mandatoryOk || loading }}
-        accessibilityLabel="Créer mon compte"
+        accessibilityLabel={t('step5.createAccount')}
       >
         {loading ? (
           <ActivityIndicator color="#FFFFFF" />
         ) : (
-          <Text style={styles.registerBtnText}>Créer mon compte</Text>
+          <Text style={styles.registerBtnText}>{t('step5.createAccount')}</Text>
         )}
       </TouchableOpacity>
 
       {!mandatoryOk && !loading && (
         <Text style={styles.hintText}>
-          Les 3 premiers consentements sont obligatoires
+          {t('step5.consentHint')}
         </Text>
       )}
 
       {/* Récapitulatif sécurité */}
       <View style={styles.securityRow}>
-        <Text style={styles.securityItem}>🔒 Données chiffrées</Text>
-        <Text style={styles.securityItem}>🇪🇺 Hébergement RGPD</Text>
-        <Text style={styles.securityItem}>🚫 Sans publicité</Text>
+        <Text style={styles.securityItem}>🔒 {t('step5.encrypted')}</Text>
+        <Text style={styles.securityItem}>🇪🇺 {t('step5.gdpr')}</Text>
+        <Text style={styles.securityItem}>🚫 {t('step5.noAds')}</Text>
       </View>
     </ScrollView>
   );
@@ -279,14 +281,15 @@ function ErrorBlock({
   error,
   onLoginPress,
 }: { error: RegisterError; onLoginPress: () => void }) {
+  const { t } = useTranslation();
   const messages: Record<RegisterError['type'], React.ReactNode> = {
     email_exists: (
       <>
         <Text style={styles.errorText}>
-          Cette adresse email est déjà associée à un compte.{' '}
+          {t('step5.err.emailExists')}{' '}
         </Text>
         <Text style={styles.errorLink} onPress={onLoginPress}>
-          Se connecter →
+          {t('onboarding.login')}
         </Text>
       </>
     ),
@@ -297,12 +300,12 @@ function ErrorBlock({
     ),
     server: (
       <Text style={styles.errorText}>
-        {'message' in error ? error.message : 'Une erreur est survenue. Réessayez.'}
+        {'message' in error ? error.message : t('step5.err.server')}
       </Text>
     ),
     missing_data: (
       <Text style={styles.errorText}>
-        Certaines informations sont manquantes. Revenez en arrière pour les compléter.
+        {t('step5.err.missingData')}
       </Text>
     ),
   };

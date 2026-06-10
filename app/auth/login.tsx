@@ -4,6 +4,7 @@ import {
   ScrollView, Platform, ActivityIndicator, KeyboardAvoidingView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const SecureStore = Platform.OS === 'web'
   ? {
@@ -16,6 +17,7 @@ const SECURE_TOKEN_KEY = 'serenite_auth_token';
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { t } = useTranslation();
 
   const [email, setEmail] = useState('');
   const [pin,   setPin]   = useState('');
@@ -24,11 +26,11 @@ export default function LoginScreen() {
 
   async function handleLogin() {
     if (!email.trim() || !pin) {
-      setError('Veuillez saisir votre email et votre code secret.');
+      setError(t('auth.login.err.empty'));
       return;
     }
     if (pin.length !== 6) {
-      setError('Le code secret doit faire 6 chiffres.');
+      setError(t('auth.login.err.pinLength'));
       return;
     }
 
@@ -46,9 +48,9 @@ export default function LoginScreen() {
 
       if (!res.ok) {
         if (res.status === 401) {
-          setError('Email ou code secret incorrect.');
+          setError(t('auth.login.err.invalid'));
         } else {
-          setError(body.error ?? 'Une erreur est survenue. Réessayez.');
+          setError(body.error ?? t('auth.login.err.server'));
         }
         return;
       }
@@ -56,7 +58,7 @@ export default function LoginScreen() {
       await SecureStore.setItemAsync(SECURE_TOKEN_KEY, body.token);
       router.replace('/(tabs)/home');
     } catch {
-      setError('Impossible de joindre le serveur. Vérifiez votre connexion.');
+      setError(t('auth.login.err.server'));
     } finally {
       setLoading(false);
     }
@@ -74,7 +76,7 @@ export default function LoginScreen() {
       >
         {/* Retour */}
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()} activeOpacity={0.7}>
-          <Text style={styles.backBtnText}>← Retour</Text>
+          <Text style={styles.backBtnText}>← {t('back')}</Text>
         </TouchableOpacity>
 
         {/* Hero */}
@@ -82,42 +84,42 @@ export default function LoginScreen() {
           <View style={styles.logoCircle}>
             <Text style={styles.logoEmoji}>🕊️</Text>
           </View>
-          <Text style={styles.title}>Connexion</Text>
-          <Text style={styles.subtitle}>Accédez à votre espace Sérénité</Text>
+          <Text style={styles.title}>{t('auth.login.title')}</Text>
+          <Text style={styles.subtitle}>{t('auth.login.subtitle')}</Text>
         </View>
 
         {/* Formulaire */}
         <View style={styles.form}>
           <View style={styles.field}>
-            <Text style={styles.label}>Adresse email</Text>
+            <Text style={styles.label}>{t('auth.login.email')}</Text>
             <TextInput
               style={styles.input}
               value={email}
               onChangeText={(v) => { setEmail(v); setError(null); }}
-              placeholder="exemple@email.com"
+              placeholder={t('auth.login.emailPH')}
               placeholderTextColor="#A0AEC0"
               keyboardType="email-address"
               autoCapitalize="none"
               autoComplete="email"
               returnKeyType="next"
-              accessibilityLabel="Adresse email"
+              accessibilityLabel={t('auth.login.email')}
             />
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Code secret (6 chiffres)</Text>
+            <Text style={styles.label}>{t('auth.login.pinCode')}</Text>
             <TextInput
               style={styles.input}
               value={pin}
               onChangeText={(v) => { setPin(v.replace(/\D/g, '').slice(0, 6)); setError(null); }}
-              placeholder="••••••"
+              placeholder={t('auth.login.pinPH')}
               placeholderTextColor="#A0AEC0"
               secureTextEntry
               keyboardType="number-pad"
               maxLength={6}
               returnKeyType="done"
               onSubmitEditing={handleLogin}
-              accessibilityLabel="Code secret à 6 chiffres"
+              accessibilityLabel={t('auth.login.pinCode')}
             />
           </View>
 
@@ -133,24 +135,24 @@ export default function LoginScreen() {
             disabled={loading || !email || !pin}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel="Se connecter"
+            accessibilityLabel={t('auth.login.submit')}
           >
             {loading
               ? <ActivityIndicator color="#FFFFFF" />
-              : <Text style={styles.primaryBtnText}>Se connecter</Text>
+              : <Text style={styles.primaryBtnText}>{t('auth.login.submit')}</Text>
             }
           </TouchableOpacity>
         </View>
 
         {/* Lien inscription */}
         <Text style={styles.hint}>
-          Pas encore de compte ?{' '}
+          {t('auth.login.noAccount')}{' '}
           <Text
             style={styles.hintLink}
             onPress={() => router.replace('/onboarding/step1')}
             accessibilityRole="link"
           >
-            Créer un compte
+            {t('auth.login.create')}
           </Text>
         </Text>
       </ScrollView>

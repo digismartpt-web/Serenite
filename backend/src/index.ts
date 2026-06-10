@@ -2,6 +2,7 @@
 import 'dotenv/config';
 
 import express, { Request, Response, NextFunction } from 'express';
+import path from 'path';
 import helmet  from 'helmet';
 import cors    from 'cors';
 import rateLimit from 'express-rate-limit';
@@ -17,6 +18,10 @@ import usersRouter       from './routes/users';
 import voiceRouter       from './routes/voice';
 import notificationsRouter from './routes/notifications';
 import mediatorsRouter    from './routes/mediators';
+import uploadRoutes       from './routes/uploads';
+import vaultRoutes        from './routes/vault';
+import healthRoutes       from './routes/health';
+import exportRoutes       from './routes/exports';
 
 // ─── Validation des variables d'environnement critiques ───────
 // L'application refuse de démarrer si une variable obligatoire manque.
@@ -173,6 +178,15 @@ app.use('/api/users',       usersRouter);
 app.use('/api/voice',       voiceRouter);
 app.use('/api/notifications', notificationsRouter);
 app.use('/api/mediators',     mediatorsRouter);
+
+// Nouvelles fonctionnalités
+app.use('/api/uploads',    uploadRoutes);
+app.use('/api/vault',      vaultRoutes);
+app.use('/api/health',     healthRoutes);
+app.use('/api/exports',    exportRoutes);
+
+// Servir les fichiers uploads
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // ── Health check (utilisé par Coolify pour le liveness probe) ─
 app.get('/api/health', (_req, res) => {

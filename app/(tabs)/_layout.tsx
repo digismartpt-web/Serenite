@@ -7,6 +7,7 @@ const SecureStore = typeof window !== 'undefined' && window.localStorage
   : require('expo-secure-store');
 
 import { ThemeProvider, useTheme } from '../context/ThemeContext';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const SECURE_TOKEN = 'serenite_auth_token';
 
@@ -50,6 +51,7 @@ function TabIcon({ name, color, size, badge }: TabIconProps) {
 function TabsContent() {
   const router           = useRouter();
   const { theme }        = useTheme();
+  const { t }            = useTranslation();
   const [unread, setUnread] = useState(0); // sera alimenté par Wave 2
 
   // ── Vérification JWT au montage ───────────────────────────
@@ -88,7 +90,7 @@ function TabsContent() {
       <Tabs.Screen
         name="home"
         options={{
-          title: 'Accueil',
+          title: t('tab.home'),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name={focused ? 'home' : 'home-outline'} color={color} size={size} />
           ),
@@ -98,7 +100,7 @@ function TabsContent() {
       <Tabs.Screen
         name="calendar"
         options={{
-          title: 'Agenda',
+          title: t('tab.calendar'),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name={focused ? 'calendar' : 'calendar-outline'} color={color} size={size} />
           ),
@@ -108,7 +110,7 @@ function TabsContent() {
       <Tabs.Screen
         name="messages"
         options={{
-          title: 'Messages',
+          title: t('tab.messages'),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon
               name={focused ? 'chatbubbles' : 'chatbubbles-outline'}
@@ -123,7 +125,7 @@ function TabsContent() {
       <Tabs.Screen
         name="voice"
         options={{
-          title: 'Vocal',
+          title: t('tab.voice'),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name={focused ? 'mic' : 'mic-outline'} color={color} size={size} />
           ),
@@ -133,7 +135,7 @@ function TabsContent() {
       <Tabs.Screen
         name="resources"
         options={{
-          title: 'Ressources',
+          title: t('tab.resources'),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name={focused ? 'heart' : 'heart-outline'} color={color} size={size} />
           ),
@@ -143,7 +145,7 @@ function TabsContent() {
       <Tabs.Screen
         name="finances"
         options={{
-          title: 'Finances',
+          title: t('tab.finances'),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name={focused ? 'wallet' : 'wallet-outline'} color={color} size={size} />
           ),
@@ -153,7 +155,7 @@ function TabsContent() {
       <Tabs.Screen
         name="settings"
         options={{
-          title: 'Profil',
+          title: t('tab.settings'),
           tabBarIcon: ({ color, size, focused }) => (
             <TabIcon name={focused ? 'person' : 'person-outline'} color={color} size={size} />
           ),

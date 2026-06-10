@@ -17,6 +17,7 @@ import QRCode from 'react-native-qrcode-svg';
 
 import InviteCodeDisplay from '../../components/invite/InviteCodeDisplay';
 import { useAuth } from '../hooks/useAuth';
+import { useTranslation } from '../../i18n/useTranslation';
 
 const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const POLL_INTERVAL_MS = 5000;
@@ -59,12 +60,13 @@ async function fetchStatus(token: string): Promise<InvitationStatus> {
 export default function SendInviteScreen() {
   const router = useRouter();
   const { token: authToken } = useAuth();
+  const { t } = useTranslation();
 
   const [invitation, setInvitation] = useState<InvitationData | null>(null);
   const [loading,    setLoading]    = useState(true);
   const [error,      setError]      = useState<string | null>(null);
   const [copied,     setCopied]     = useState(false);
-  const [statusMsg,  setStatusMsg]  = useState<string>('En attente du coparent…');
+  const [statusMsg,  setStatusMsg]  = useState<string>(t('invite.waitingForCoparent'));
 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -76,7 +78,7 @@ export default function SendInviteScreen() {
       const data = await createInvitation(authToken);
       setInvitation(data);
     } catch (e: any) {
-      setError(e.message ?? 'Erreur réseau');
+      setError(e.message ?? t('invite.networkError'));
     } finally {
       setLoading(false);
     }
@@ -94,12 +96,12 @@ export default function SendInviteScreen() {
         if (status === 'accepted') {
           clearInterval(pollRef.current!);
           setStatusMsg(
-            `${acceptedByName ?? 'Votre coparent'} a rejoint ! Redirection…`
+            t('invite.coparentJoined', { name: acceptedByName ?? t('invite.yourCoparent') })
           );
           setTimeout(() => router.replace('/invite/children'), 1500);
         } else if (status === 'expired') {
           clearInterval(pollRef.current!);
-          setStatusMsg('Invitation expirée — générez-en une nouvelle.');
+          setStatusMsg(t('invite.invitationExpired'));
         }
       } catch { /* silencieux */ }
     }, POLL_INTERVAL_MS);
@@ -110,15 +112,15 @@ export default function SendInviteScreen() {
   // ── Partage ─────────────────────────────────────────────────
   async function shareSMS() {
     const available = await SMS.isAvailableAsync();
-    if (!available) { alert('SMS non disponible sur cet appareil'); return; }
+    if (!available) { alert(t('invite.smsNotAvailable')); return; }
     await SMS.sendSMSAsync([], buildShareMessage());
   }
 
   async function shareEmail() {
     const available = await Mail.isAvailableAsync();
-    if (!available) { alert('Messagerie non disponible'); return; }
+    if (!available) { alert(t('invite.emailNotAvailable')); return; }
     await Mail.composeAsync({
-      subject: 'Rejoins moi sur Sérénité',
+      subject: t('invite.emailSubject'),
       body: buildShareMessage(),
     });
   }
@@ -132,11 +134,7 @@ export default function SendInviteScreen() {
 
   function buildShareMessage(): string {
     if (!invitation) return '';
-    return (
-      `Je t'invite à rejoindre notre espace famille sur Sérénité.\n\n` +
-      `Code : ${invitation.code}\n` +
-      `Lien : ${invitation.link}`
-    );
+    return t('invite.shareMessage', { code: invitation.code, link: invitation.link });
   }
 
   // ── Rendu ───────────────────────────────────────────────────
@@ -145,7 +143,7 @@ export default function SendInviteScreen() {
       <View style={styles.center}>
         <Text style={styles.errorText}>{error}</Text>
         <TouchableOpacity style={styles.primaryBtn} onPress={generate}>
-          <Text style={styles.primaryBtnText}>Réessayer</Text>
+          <Text style={styles.primaryBtnText}>{t('retry')}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -158,9 +156,9 @@ export default function SendInviteScreen() {
     >
       {/* ─ Section 1 : code ─ */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Code d'invitation</Text>
+        <Text style={styles.sectionTitle}>{t('invite.codeTitle')}</Text>
         <Text style={styles.sectionSub}>
-          Partagez ce code à 6 chiffres avec le coparent
+          {t('invite.codeSubtitle')}
         </Text>
         <InviteCodeDisplay
           code={invitation?.code ?? null}
@@ -168,9 +166,11 @@ export default function SendInviteScreen() {
           loading={loading}
           expiresLabel={
             invitation
-              ? `Expire le ${new Date(invitation.codeExpiresAt).toLocaleString('fr-FR', {
-                  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
-                })}`
+              ? t('invite.expiresAt', {
+                  date: new Date(invitation.codeExpiresAt).toLocaleString('fr-FR', {
+                    day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+                  })
+                })
               : undefined
           }
         />
@@ -178,13 +178,13 @@ export default function SendInviteScreen() {
 
       {/* ─ Section 2 : boutons de partage ─ */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Partager le lien</Text>
+        <Text style={styles.sectionTitle}>{t('invite.shareTitle')}</Text>
         <View style={styles.shareRow}>
-          <ShareButton icon="✉️" label="SMS"   onPress={shareSMS}  />
-          <ShareButton icon="📧" label="Email" onPress={shareEmail} />
+          <ShareButton icon="✉️" label={t('invite.sms')}   onPress={shareSMS}  />
+          <ShareButton icon="📧" label={t('invite.email')} onPress={shareEmail} />
           <ShareButton
             icon={copied ? '✅' : '🔗'}
-            label={copied ? 'Copié !' : 'Copier'}
+            label={copied ? t('invite.copied') : t('invite.copy')}
             onPress={copyLink}
           />
         </View>
@@ -192,9 +192,9 @@ export default function SendInviteScreen() {
 
       {/* ─ Section 3 : QR code ─ */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>QR Code</Text>
+        <Text style={styles.sectionTitle}>{t('invite.qrTitle')}</Text>
         <Text style={styles.sectionSub}>
-          Le coparent scanne ce code avec son téléphone
+          {t('invite.qrSubtitle')}
         </Text>
         <View style={styles.qrWrapper}>
           {invitation ? (
