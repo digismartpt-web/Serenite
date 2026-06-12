@@ -2,6 +2,7 @@
 // Toutes les constantes liées à l'API backend et aux modèles IA.
 // Importez depuis ce fichier — ne dupliquez jamais process.env dans les composants.
 
+// Note: la valeur vient de .env (EXPO_PUBLIC_API_URL) — rebuild si l'URL change
 export const API_URL =
   process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
 

@@ -21,7 +21,7 @@ type State = 'idle' | 'loading' | 'success' | 'error';
 
 export default function JoinScreen() {
   const router     = useRouter();
-  const { token: authToken } = useAuth();
+  const { token: authToken, loading: authLoading } = useAuth();
   const { t } = useTranslation();
   // Le token peut être passé via deep link (serenite://join/[token])
   const { token: deepLinkToken } = useLocalSearchParams<{ token?: string }>();
@@ -36,10 +36,22 @@ export default function JoinScreen() {
 
   // Si on arrive via deep link avec un token, on tente directement
   useEffect(() => {
-    if (deepLinkToken) {
+    if (deepLinkToken && !authLoading) {
+      if (!authToken) {
+        // Pas connecté — sauvegarder le token d'invitation et rediriger vers login
+        try { localStorage.setItem('serenite_pending_invite', deepLinkToken); } catch {}
+        // router.replace ne fonctionne pas tjs sur web en direct URL
+        setTimeout(() => {
+          try { router.replace('/auth/login'); } catch {}
+          if (typeof window !== 'undefined' && window.location.pathname !== '/auth/login') {
+            window.location.href = '/auth/login';
+          }
+        }, 100);
+        return;
+      }
       acceptWithToken(deepLinkToken);
     }
-  }, [deepLinkToken]);
+  }, [deepLinkToken, authToken, authLoading]);
 
   // ── Accepter avec un code saisi ──────────────────────────────
   async function acceptWithCode(enteredCode: string) {

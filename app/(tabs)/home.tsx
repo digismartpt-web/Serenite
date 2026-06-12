@@ -50,25 +50,6 @@ const SHORTCUTS: Shortcut[] = [
   { id: 'agenda',    icon: 'calendar-outline',  label: 'home.agenda',    route: '/(tabs)/calendar', color: '#4A90D9' },
   { id: 'message',   icon: 'chatbubble-outline', label: 'home.message',   route: '/(tabs)/messages', color: '#1D9E75' },
   { id: 'depense',   icon: 'receipt-outline',    label: 'home.expense',   route: '/(tabs)/finances', color: '#D97706' },
-  { id: 'documents', icon: 'document-outline',   label: 'home.documents', route: '/documents',        color: '#7C3AED' },
-];
-
-const MOCK_NOTIFICATIONS: Notification[] = [
-  {
-    id: '1', icon: '💬', unread: true, time: 'il y a 5 min',
-    title: 'Nouveau message de Marie',
-    body:  'Peux-tu récupérer Emma à 17h demain ?',
-  },
-  {
-    id: '2', icon: '📅', unread: true, time: 'il y a 1h',
-    title: 'Rendez-vous demain',
-    body:  'Visite médicale Lucas — 14h30 Cabinet Duval',
-  },
-  {
-    id: '3', icon: '💰', unread: false, time: 'hier',
-    title: 'Dépense à valider',
-    body:  'Marie a ajouté une dépense : Fournitures scolaires 48 €',
-  },
 ];
 
 // ─── Utilitaires ──────────────────────────────────────────────
@@ -139,17 +120,19 @@ export default function HomeScreen() {
       .finally(() => setLoadingMedical(false));
   }, [token, familyId]);
 
-  // Barre sérénité — animation au montage
+  // Barre sérénité — sera alimenté par l'API
   const serenityAnim = useRef(new Animated.Value(0)).current;
-  const SERENITY_SCORE = 0.73; // 73% — sera API en Wave 2
+  const SERENITY_SCORE = null; // null = pas encore calculé
 
   useEffect(() => {
-    Animated.spring(serenityAnim, {
-      toValue:   SERENITY_SCORE,
-      damping:   14,
-      stiffness: 80,
-      useNativeDriver: false,
-    }).start();
+    if (SERENITY_SCORE !== null) {
+      Animated.spring(serenityAnim, {
+        toValue:   SERENITY_SCORE,
+        damping:   14,
+        stiffness: 80,
+        useNativeDriver: false,
+      }).start();
+    }
   }, []);
 
   // Compte à rebours live
@@ -164,9 +147,9 @@ export default function HomeScreen() {
   });
 
   const firstName  = user?.firstName ?? 'vous';
-  // Mock : ce soir c'est chez Maman (sera alimenté par l'API agenda)
-  const custodyAt  = 'Maman';
-  const custodyEmoji = '👩';
+  // Alimenté par l'API agenda quand connecté à une famille
+  const [custodyAt, setCustodyAt] = useState<string | null>(null);
+  const [custodyEmoji, setCustodyEmoji] = useState<string | null>(null);
 
   return (
     <ScrollView
@@ -187,15 +170,16 @@ export default function HomeScreen() {
         </View>
         <TouchableOpacity
           style={[styles.notifBtn, { backgroundColor: theme.surface, borderColor: theme.border }]}
-          onPress={() => {}}
+          onPress={() => router.push('/(tabs)/messages')}
           accessibilityLabel={t('home.notifications')}
         >
           <Ionicons name="notifications-outline" size={22} color={theme.primary} />
-          <View style={styles.notifDot} />
+          {false && <View style={styles.notifDot} />}
         </TouchableOpacity>
       </View>
 
-      {/* ─── Bannière garde ────────────────────────────────── */}
+      {/* ─── Bannière garde — affichée seulement si donnée disponible ── */}
+      {custodyAt && custodyEmoji && (
       <View style={[styles.custodyCard, { backgroundColor: theme.primary }]}>
         <View style={styles.custodyLeft}>
           <Text style={styles.custodyLabel}>{t('home.tonight')}</Text>
@@ -214,6 +198,7 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
       </View>
+      )}
 
       {/* ─── Raccourcis ────────────────────────────────────── */}
       <View style={styles.sectionRow}>
@@ -248,7 +233,7 @@ export default function HomeScreen() {
             <View style={[styles.metricIconBg, { backgroundColor: '#4A90D918' }]}>
               <Ionicons name="chatbubbles" size={20} color="#4A90D9" />
             </View>
-            <Text style={[styles.metricValue, { color: theme.text }]}>3</Text>
+            <Text style={[styles.metricValue, { color: theme.text }]}>0</Text>
           </View>
           <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
             {t('home.unreadMessages')}
@@ -262,7 +247,7 @@ export default function HomeScreen() {
               <Ionicons name="leaf" size={20} color="#1D9E75" />
             </View>
             <Text style={[styles.metricValue, { color: theme.text }]}>
-              {Math.round(SERENITY_SCORE * 100)}%
+              {SERENITY_SCORE !== null ? `${Math.round(SERENITY_SCORE * 100)}%` : '--'}
             </Text>
           </View>
           <Text style={[styles.metricLabel, { color: theme.textSecondary }]}>
@@ -272,7 +257,8 @@ export default function HomeScreen() {
 
       </View>
 
-      {/* ─── Barre sérénité ────────────────────────────────── */}
+      {/* ─── Barre sérénité — visible seulement si score disponible ── */}
+      {SERENITY_SCORE !== null && (
       <View style={[styles.serenityCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.serenityHeader}>
           <Text style={[styles.serenityTitle, { color: theme.text }]}>
@@ -292,6 +278,7 @@ export default function HomeScreen() {
           {t('home.basedOnMessages')}
         </Text>
       </View>
+      )}
 
       {/* ─── Prochains RDV médicaux ────────────────────────── */}
       {medicalEvents.length > 0 && (
@@ -347,43 +334,6 @@ export default function HomeScreen() {
           <Text style={[styles.medicalEmptyAction, { color: theme.primary }]}>{t('home.add')}</Text>
         </TouchableOpacity>
       )}
-
-      {/* ─── Notifications récentes ────────────────────────── */}
-      <View style={styles.sectionRow}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>{t('home.recent')}</Text>
-        <TouchableOpacity onPress={() => {}}>
-          <Text style={[styles.seeAll, { color: theme.primary }]}>{t('home.seeAll')}</Text>
-        </TouchableOpacity>
-      </View>
-
-      {MOCK_NOTIFICATIONS.map((notif) => (
-        <TouchableOpacity
-          key={notif.id}
-          style={[
-            styles.notifCard,
-            { backgroundColor: theme.surface, borderColor: theme.border },
-            notif.unread && { borderLeftWidth: 3, borderLeftColor: theme.primary },
-          ]}
-          activeOpacity={0.8}
-          accessibilityLabel={notif.title}
-        >
-          <Text style={styles.notifCardIcon}>{notif.icon}</Text>
-          <View style={styles.notifCardTexts}>
-            <View style={styles.notifCardRow}>
-              <Text style={[styles.notifCardTitle, { color: theme.text }]} numberOfLines={1}>
-                {notif.title}
-              </Text>
-              <Text style={[styles.notifCardTime, { color: theme.textSecondary }]}>
-                {notif.time}
-              </Text>
-            </View>
-            <Text style={[styles.notifCardBody, { color: theme.textSecondary }]} numberOfLines={1}>
-              {notif.body}
-            </Text>
-          </View>
-          {notif.unread && <View style={[styles.unreadDot, { backgroundColor: theme.primary }]} />}
-        </TouchableOpacity>
-      ))}
 
       <View style={{ height: 24 }} />
     </ScrollView>

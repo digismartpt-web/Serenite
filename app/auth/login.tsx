@@ -56,7 +56,24 @@ export default function LoginScreen() {
       }
 
       await SecureStore.setItemAsync(SECURE_TOKEN_KEY, body.token);
-      router.replace('/(tabs)/home');
+      // Vérifier s'il y a une invitation en attente
+      const pendingInvite = typeof window !== 'undefined'
+        ? (() => { try { return localStorage.getItem('serenite_pending_invite') } catch { return null } })()
+        : null;
+      if (pendingInvite) {
+        try { localStorage.removeItem('serenite_pending_invite'); } catch {}
+        const target = `/invite/join?token=${pendingInvite}`;
+        setTimeout(() => {
+          try { router.replace(target); } catch {}
+          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/invite/join')) {
+            window.location.href = target;
+          }
+        }, 100);
+      } else {
+        setTimeout(() => {
+          try { router.replace('/(tabs)/home'); } catch {}
+        }, 100);
+      }
     } catch {
       setError(t('auth.login.err.server'));
     } finally {

@@ -1,6 +1,8 @@
 import { useState, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { T, type LangCode } from './translations';
+import { T, tList, weekDays, shortMonths, type LangCode } from './translations';
+
+export { tList, weekDays, shortMonths };
 
 const LANG_KEY = '@serenite/language';
 

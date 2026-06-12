@@ -84,11 +84,13 @@ export default function SendInviteScreen() {
     }
   }, [authToken]);
 
-  useEffect(() => { generate(); }, []);
+  useEffect(() => {
+    if (authToken) generate();
+  }, [authToken]);
 
   // ── Polling statut ──────────────────────────────────────────
   useEffect(() => {
-    if (!invitation) return;
+    if (!invitation || !authToken) return;
 
     pollRef.current = setInterval(async () => {
       try {

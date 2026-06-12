@@ -173,7 +173,7 @@ export default function MessagesScreen() {
 
   // ── Charger la famille puis les messages ──────────────────
   const loadData = useCallback(async (silent = false) => {
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
     if (!silent) setLoading(true);
     setError(null);
 
@@ -221,7 +221,7 @@ export default function MessagesScreen() {
     }
   }, [token, familyId]);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [token]);
 
   // Auto-scroll au dernier message
   useEffect(() => {

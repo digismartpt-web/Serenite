@@ -72,6 +72,8 @@ export const T: TranslationMap = {
   'step3.parentType.papa':       { fr: 'Papa',                        en: 'Father',                           es: 'Papá',                             pt: 'Pai' },
   'step3.parentType.maman':      { fr: 'Maman',                       en: 'Mother',                           es: 'Mamá',                             pt: 'Mãe' },
   'step3.parentType.stepparent': { fr: 'Beau-parent',                 en: 'Stepparent',                       es: 'Padrastro/Madrastra',              pt: 'Padrasto/Madrasta' },
+  'step3.parentType.beau-pere':  { fr: 'Beau père',                   en: 'Stepfather',                       es: 'Padrastro',                        pt: 'Padrasto' },
+  'step3.parentType.belle-mere': { fr: 'Belle mère',                  en: 'Stepmother',                       es: 'Madrastra',                        pt: 'Madrastra' },
   'step3.parentType.stepfather': { fr: 'Beau-père',                   en: 'Stepfather',                       es: 'Padrastro',                        pt: 'Padrasto' },
   'step3.parentType.stepmother': { fr: 'Belle-mère',                  en: 'Stepmother',                       es: 'Madrastra',                        pt: 'Madrasta' },
   'step3.status':       { fr: 'Votre statut',                         en: 'Your status',                      es: 'Su estado',                        pt: 'Seu estado' },
