@@ -5,21 +5,32 @@ import { requireAuth, AuthRequest } from '../middleware/auth';
 
 const router = Router();
 
+// ─── Helper : wrappe un handler async avec try/catch ─────────
+
+function asyncHandler(fn: (req: AuthRequest, res: Response) => Promise<void>) {
+  return async (req: AuthRequest, res: Response): Promise<void> => {
+    try {
+      await fn(req, res);
+    } catch (err: any) {
+      console.error(`[users] ${req.method} ${req.path}:`, err.message);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
+  };
+}
+
 // ─── GET /api/users/export ──────────────────────────────────────
-// Export RGPD de toutes les données personnelles de l'utilisateur
 
 router.get(
   '/export',
   requireAuth,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
     const userId = req.user!.id;
 
     // Informations de profil
     const userRows = await query<Record<string, unknown>>(
       `SELECT id, email, first_name, last_name, phone, address,
-              birth_date, parent_type, status, children_count,
-              language, email_verified, created_at, updated_at,
-              -- notification_token retiré de l'export RGPD
+              birth_date, role, parent_type, status, children_count,
+              language, email_verified, created_at, updated_at
        FROM users WHERE id = $1`,
       [userId]
     );
@@ -27,104 +38,80 @@ router.get(
 
     // Consents RGPD
     const consents = await query<Record<string, unknown>>(
-      `SELECT consent_1, consent_2, consent_3, consent_4, ip_address,
-              consented_at
-       FROM consents WHERE user_id = $1 ORDER BY consented_at DESC`,
+      `SELECT cgu_accepted, data_processing_accepted,
+              children_data_accepted, newsletter_accepted,
+              ip_address, accepted_at
+       FROM consents WHERE user_id = $1 ORDER BY accepted_at DESC`,
       [userId]
     );
 
     // Messages envoyés
     const messages = await query<Record<string, unknown>>(
-      `SELECT m.id, m.content, m.original_content, m.is_reformulated,
-              m.score, m.hash, m.created_at,
-              u.first_name AS recipient_first_name
-       FROM messages m
-       LEFT JOIN users u ON u.id = m.receiver_id
-       WHERE m.sender_id = $1
-       ORDER BY m.created_at ASC`,
+      `SELECT id, content, original_content, is_reformulated,
+              aggressiveness_score, created_at
+       FROM messages
+       WHERE sender_id = $1
+       ORDER BY created_at ASC`,
       [userId]
     );
 
     // Messages reçus
     const receivedMessages = await query<Record<string, unknown>>(
-      `SELECT m.id, m.content, m.is_reformulated, m.score, m.hash,
-              m.created_at, m.read_at,
-              u.first_name AS sender_first_name
-       FROM messages m
-       LEFT JOIN users u ON u.id = m.sender_id
-       WHERE m.receiver_id = $1
-       ORDER BY m.created_at ASC`,
+      `SELECT id, content, is_reformulated, aggressiveness_score,
+              created_at, read_at,
+              sender_id
+       FROM messages
+       WHERE family_id IN (SELECT id FROM families WHERE parent_a_id = $1 OR parent_b_id = $1)
+         AND sender_id != $1
+       ORDER BY created_at ASC`,
       [userId]
     );
 
     // Dépenses
     const expenses = await query<Record<string, unknown>>(
-      `SELECT id, title, amount, category, split_ratio, receipt_url,
-              status, created_at, updated_at
+      `SELECT id, title, amount, category, expense_date, notes, created_at
        FROM expenses
        WHERE paid_by = $1
        ORDER BY created_at DESC`,
       [userId]
     );
 
-    // Événements du calendrier créés par l'utilisateur
+    // Événements du calendrier
     const events = await query<Record<string, unknown>>(
-      `SELECT e.id, e.title, e.description, e.start_at, e.end_at,
-              e.all_day, e.category, e.color, e.created_at
-       FROM events e
-       WHERE e.created_by = $1
-       ORDER BY e.start_at ASC`,
+      `SELECT id, title, description, start_at, end_at,
+              all_day, category, color, created_at
+       FROM events
+       WHERE created_by = $1
+       ORDER BY start_at ASC`,
       [userId]
     );
 
     // Informations famille
     const families = await query<Record<string, unknown>>(
-      `SELECT f.id, f.status, f.created_at,
-              u.first_name AS parent_a_name,
-              u2.first_name AS parent_b_name
-       FROM families f
-       LEFT JOIN users u ON u.id = f.parent_a_id
-       LEFT JOIN users u2 ON u2.id = f.parent_b_id
-       WHERE f.parent_a_id = $1 OR f.parent_b_id = $1`,
-      [userId]
-    );
-
-    // Enfants de la famille
-    const children = await query<Record<string, unknown>>(
-      `SELECT fc.id, fc.first_name, fc.birth_date, fc.color,
-              fc.age, fc.created_at
-       FROM family_children fc
-       JOIN families f ON f.id = fc.family_id
-       WHERE f.parent_a_id = $1 OR f.parent_b_id = $1`,
+      `SELECT id, name, status, created_at,
+              parent_a_id, parent_b_id
+       FROM families
+       WHERE parent_a_id = $1 OR parent_b_id = $1`,
       [userId]
     );
 
     res.json({
       exportedAt: new Date().toISOString(),
-      user: {
-        ...userProfile,
-        consents,
-      },
-      messages: {
-        sent: messages,
-        received: receivedMessages,
-      },
+      user: { ...userProfile, consents },
+      messages: { sent: messages, received: receivedMessages },
       expenses,
       events,
       families,
-      children,
     });
-  }
+  })
 );
 
-
 // ─── POST /api/users/update-push-token ─────────────────────────
-// Met à jour le push token de l'utilisateur
 
 router.post(
   '/update-push-token',
   requireAuth,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
     const { pushToken } = req.body as { pushToken?: string };
     const userId = req.user!.id;
 
@@ -139,16 +126,15 @@ router.post(
     );
 
     res.json({ success: true });
-  }
+  })
 );
 
 // ─── DELETE /api/users/push-token ──────────────────────────────
-// Supprime le push token (quand expiré ou désinscrit)
 
 router.delete(
   '/push-token',
   requireAuth,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
     const userId = req.user!.id;
 
     await query(
@@ -157,16 +143,15 @@ router.delete(
     );
 
     res.json({ success: true });
-  }
+  })
 );
 
 // ─── DELETE /api/users/account ───────────────────────────────
-// Supprime complètement le compte utilisateur (CASCADE)
 
 router.delete(
   '/account',
   requireAuth,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  asyncHandler(async (req: AuthRequest, res: Response): Promise<void> => {
     const userId = req.user!.id;
     const { confirm } = req.body as { confirm?: boolean };
 
@@ -175,14 +160,9 @@ router.delete(
       return;
     }
 
-    try {
-      await query('DELETE FROM users WHERE id = $1', [userId]);
-      res.json({ success: true, message: 'Compte supprimé' });
-    } catch (err) {
-      console.error('DELETE /users/account:', err);
-      res.status(500).json({ error: 'Erreur serveur' });
-    }
-  }
+    await query('DELETE FROM users WHERE id = $1', [userId]);
+    res.json({ success: true, message: 'Compte supprimé' });
+  })
 );
 
 export default router;

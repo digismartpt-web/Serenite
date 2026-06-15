@@ -34,7 +34,7 @@ export interface UserRow {
   phone:                string | null;
   address:              string | null;
   birth_date:           string | null;
-  age:                  number | null;
+  age:                  number | null;  // calculé depuis birth_date, pas en DB
   role:                 string;
   parent_type:          string | null;
   status:               string | null;
@@ -62,7 +62,9 @@ export function toPublicUser(row: UserRow): UserPublic {
     phone:               row.phone,
     address:             row.address,
     birthDate:           row.birth_date,
-    age:                 row.age,
+    age:                 row.birth_date
+                            ? Math.floor((Date.now() - new Date(row.birth_date).getTime()) / 31557600000)
+                            : null,
     role:                row.role as UserPublic['role'],
     parentType:          row.parent_type as UserPublic['parentType'],
     status:              row.status as UserPublic['status'],

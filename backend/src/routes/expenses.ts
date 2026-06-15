@@ -21,7 +21,6 @@ const ExpenseBody = z.object({
   expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(() => new Date().toISOString().slice(0, 10)),
   splitRatio:  z.number().min(0).max(1).default(0.5),
   notes:       z.string().max(1000).trim().optional(),
-  receiptUrl:  z.string().max(500).trim().optional(),
 });
 
 const UpdateBody = ExpenseBody.partial().omit({ familyId: true });
@@ -159,7 +158,7 @@ router.post(
       return;
     }
 
-    const { familyId, title, amount, category, expenseDate, splitRatio, notes, receiptUrl } = parsed.data;
+    const { familyId, title, amount, category, expenseDate, splitRatio, notes } = parsed.data;
     const userId = req.user!.id;
 
     if (!(await checkFamilyMember(familyId, userId))) {
@@ -169,10 +168,10 @@ router.post(
 
     const expense = await withTransaction(async (client) => {
       const row = await client.query(
-        `INSERT INTO expenses (family_id, paid_by, title, amount, category, expense_date, split_ratio, notes, receipt_url)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+        `INSERT INTO expenses (family_id, paid_by, title, amount, category, expense_date, split_ratio, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
          RETURNING *`,
-        [familyId, userId, title, amount, category, expenseDate, splitRatio, notes ?? null, receiptUrl ?? null]
+        [familyId, userId, title, amount, category, expenseDate, splitRatio, notes ?? null]
       );
       return row.rows[0];
     });

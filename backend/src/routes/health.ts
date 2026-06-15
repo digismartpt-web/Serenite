@@ -40,9 +40,9 @@ const HealthBody = z.object({
   title:       z.string().min(1).max(255).trim(),
   description: z.string().max(5000).trim().optional(),
   recordDate:  z.string().regex(/^\d{4}-\d{2}-\d{2}$/).default(() => new Date().toISOString().slice(0, 10)),
-  doctor:      z.string().max(255).trim().optional(),
+  doctorName:  z.string().max(255).trim().optional(),
   notes:       z.string().max(2000).trim().optional(),
-  fileUrl:     z.string().max(500).trim().optional(),
+  filePath:    z.string().max(500).trim().optional(),
 });
 
 // ─── GET /api/health ───────────────────────────────────────────
@@ -66,22 +66,20 @@ router.get(
       id: string;
       child_id: string;
       child_first_name: string;
-      child_last_name: string;
       record_type: string;
       title: string;
       description: string | null;
       record_date: string;
-      doctor: string | null;
+      doctor_name: string | null;
       notes: string | null;
-      file_url: string | null;
+      file_path: string | null;
       created_by: string;
       created_at: string;
     }>(
       `SELECT h.id, h.child_id,
               c.first_name AS child_first_name,
-              c.last_name  AS child_last_name,
               h.record_type, h.title, h.description,
-              h.record_date, h.doctor, h.notes, h.file_url,
+              h.record_date, h.doctor_name, h.notes, h.file_path,
               h.created_by, h.created_at
        FROM health_records h
        JOIN children c ON c.id = h.child_id
@@ -129,14 +127,14 @@ router.get(
       title: string;
       description: string | null;
       record_date: string;
-      doctor: string | null;
+      doctor_name: string | null;
       notes: string | null;
-      file_url: string | null;
+      file_path: string | null;
       created_by: string;
       created_at: string;
     }>(
       `SELECT id, child_id, record_type, title, description,
-              record_date, doctor, notes, file_url,
+              record_date, doctor_name, notes, file_path,
               created_by, created_at
        FROM health_records
        WHERE child_id = $1
@@ -167,7 +165,7 @@ router.post(
     }
 
     const userId = req.user!.id;
-    const { childId, recordType, title, description, recordDate, doctor, notes, fileUrl } =
+    const { childId, recordType, title, description, recordDate, doctorName, notes, filePath } =
       parsed.data;
 
     const familyId = await getFamilyId(userId);
@@ -194,7 +192,7 @@ router.post(
       record_date: string;
       created_at: string;
     }>(
-      `INSERT INTO health_records (child_id, created_by, record_type, title, description, record_date, doctor, notes, file_url)
+      `INSERT INTO health_records (child_id, created_by, record_type, title, description, record_date, doctor_name, notes, file_path)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, child_id, record_type, title, record_date, created_at`,
       [
@@ -204,9 +202,9 @@ router.post(
         title,
         description ?? null,
         recordDate,
-        doctor ?? null,
+        doctorName ?? null,
         notes ?? null,
-        fileUrl ?? null,
+        filePath ?? null,
       ]
     );
 

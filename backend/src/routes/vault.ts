@@ -27,7 +27,7 @@ async function getFamilyId(userId: string): Promise<string | null> {
 const VaultBody = z.object({
   title:       z.string().min(1).max(255).trim(),
   description: z.string().max(2000).trim().optional(),
-  fileUrl:     z.string().max(500).trim(),
+  filePath:    z.string().max(500).trim(),
   fileType:    z.string().max(50).trim().optional(),
   fileSize:    z.number().int().nonnegative().optional(),
   category:    z.string().max(100).trim().optional(),
@@ -63,14 +63,14 @@ router.get(
       id: string;
       title: string;
       description: string | null;
-      file_url: string;
+      file_path: string;
       file_type: string | null;
       file_size: number | null;
       category: string | null;
       uploaded_by: string;
       created_at: string;
     }>(
-      `SELECT v.id, v.title, v.description, v.file_url, v.file_type,
+      `SELECT v.id, v.title, v.description, v.file_path, v.file_type,
               v.file_size, v.category, v.uploaded_by,
               v.created_at
        FROM vault_documents v
@@ -110,24 +110,24 @@ router.post(
       return;
     }
 
-    const { title, description, fileUrl, fileType, fileSize, category } =
+    const { title, description, filePath, fileType, fileSize, category } =
       parsed.data;
 
     const row = await queryOne<{
       id: string;
       title: string;
-      file_url: string;
+      file_path: string;
       created_at: string;
     }>(
-      `INSERT INTO vault_documents (family_id, uploaded_by, title, description, file_url, file_type, file_size, category)
+      `INSERT INTO vault_documents (family_id, uploaded_by, title, description, file_path, file_type, file_size, category)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING id, title, file_url, created_at`,
+       RETURNING id, title, file_path, created_at`,
       [
         familyId,
         userId,
         title,
         description ?? null,
-        fileUrl,
+        filePath,
         fileType ?? null,
         fileSize ?? null,
         category ?? null,

@@ -1,6 +1,9 @@
 // ⚠️ dotenv doit être importé EN PREMIER, avant tout autre module
 import 'dotenv/config';
 
+// express-async-errors : attrape les erreurs dans les routeurs async
+import 'express-async-errors';
+
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import helmet  from 'helmet';
@@ -71,7 +74,7 @@ const globalLimiter = rateLimit({
 
 const registerLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 3,
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Trop de tentatives d\'inscription. Réessayez plus tard.' },

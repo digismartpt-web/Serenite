@@ -1,41 +1,78 @@
-import { Pool, PoolClient } from 'pg';
+/**
+ * Database layer — Supabase CLI proxy.
+ *
+ * Utilise `supabase db query --linked` qui passe par l'API Management.
+ * Chaque appel exécute les requêtes dans une connexion PostgreSQL
+ * unique — les CTE (WITH) permettent les opérations multi-tables.
+ *
+ * Variables d'environnement (non utilisées directement ici — la
+ * connexion passe par la config `supabase link` dans le dossier) :
+ *   DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD
+ */
 
-// ─── Pool principal ───────────────────────────────────────────
-// Utilise les variables d'env individuelles pour Coolify
-// (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
-const pool = new Pool({
-  host:                   process.env.DB_HOST     ?? 'localhost',
-  port:                   parseInt(process.env.DB_PORT ?? '5432', 10),
-  database:               process.env.DB_NAME     ?? 'serenite',
-  user:                   process.env.DB_USER     ?? 'postgres',
-  password:               process.env.DB_PASSWORD ?? '',
-  options:                '-c search_path=sereno',
-  ssl:
-    process.env.NODE_ENV === 'production'
-      ? { rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false' }
-      : false,
-  // Pool sizing
-  max:                    parseInt(process.env.DB_POOL_MAX ?? '20', 10),
-  idleTimeoutMillis:      30_000,
-  connectionTimeoutMillis: 3_000,
-});
+import { execSync } from 'child_process';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
 
-// Log des erreurs de pool (jamais les credentials)
-pool.on('error', (err) => {
-  console.error('[DB] Erreur inattendue sur un client idle :', err.message);
-});
+const PROJECT_DIR = path.resolve(__dirname, '../../..');
 
-// ─── Helpers typés ────────────────────────────────────────────
+// ─── Interface TransactionClient ──────────────────────────────
 
-export default pool;
+export interface TransactionClient {
+  query<T = any>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }>;
+}
+
+// ─── Proxy CLI Supabase ───────────────────────────────────────
+
+function interpolate(sql: string, params: unknown[]): string {
+  return sql.replace(/\$(\d+)/g, (_match, num) => {
+    const idx = parseInt(num, 10) - 1;
+    if (idx < 0 || idx >= params.length) return _match;
+    const val = params[idx];
+    if (val === null || val === undefined) return 'NULL';
+    if (typeof val === 'number') return String(val);
+    if (typeof val === 'boolean') return val ? 'true' : 'false';
+    const str = String(val).replace(/'/g, "''");
+    return `'${str}'`;
+  });
+}
+
+function runSQL(sql: string): any[] {
+  const tmpFile = path.join(os.tmpdir(), `serenite-sql-${Date.now()}-${Math.random().toString(36).slice(2)}.sql`);
+  try {
+    fs.writeFileSync(tmpFile, sql, 'utf-8');
+    const result = execSync(
+      `supabase db query --linked --output json --file "${tmpFile}"`,
+      {
+        cwd: PROJECT_DIR,
+        encoding: 'utf-8',
+        timeout: 60000,
+        maxBuffer: 10 * 1024 * 1024,
+      }
+    );
+    const trimmed = result.trim();
+    if (!trimmed || trimmed === '[]') return [];
+    return JSON.parse(trimmed);
+  } catch (e: any) {
+    const stderr = e.stderr || '';
+    const stdout = e.stdout || '';
+    const msg = stderr.replace(/Initialising login role\.\.\.\n?/g, '').trim() || e.message;
+    throw new Error(`[DB Proxy] ${msg}`);
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
+  }
+}
+
+// ─── Requêtes ─────────────────────────────────────────────────
 
 /** Exécute une requête et retourne toutes les lignes. */
 export async function query<T = Record<string, unknown>>(
   text: string,
   params?: unknown[]
 ): Promise<T[]> {
-  const result = await pool.query(text, params);
-  return result.rows as T[];
+  const sql = params ? interpolate(text, params) : text;
+  return runSQL(sql) as T[];
 }
 
 /** Exécute une requête et retourne la première ligne ou null. */
@@ -50,37 +87,51 @@ export async function queryOne<T = Record<string, unknown>>(
 /**
  * Exécute un ensemble d'opérations dans une transaction atomique.
  *
- * @example
- * const result = await withTransaction(async (client) => {
- *   await client.query('INSERT INTO users …', […]);
- *   await client.query('INSERT INTO consents …', […]);
- *   return { ok: true };
- * });
+ * Collecte toutes les requêtes et les exécute en UN SEUL appel CLI,
+ * ce qui garantit une vraie transaction (BEGIN + requêtes + COMMIT
+ * dans la même connexion PostgreSQL).
+ *
+ * ATTENTION : chaque client.query() retourne un résultat VIDE
+ * (placeholders) — les vraies valeurs ne sont visibles qu'après
+ * COMMIT. Les routes qui utilisent withTransaction doivent être
+ * adaptées avec des CTE en une seule requête.
  */
 export async function withTransaction<T>(
-  fn: (client: PoolClient) => Promise<T>
+  fn: (client: TransactionClient) => Promise<T>
 ): Promise<T> {
-  const client = await pool.connect();
+  const queryParts: string[] = [];
+
+  const client: TransactionClient = {
+    query: async <TResult = any>(text: string, params?: unknown[]) => {
+      const sql = params ? interpolate(text, params) : text;
+      queryParts.push(sql);
+      return { rows: [] as TResult[], rowCount: 0 };
+    },
+  };
+
   try {
-    await client.query('BEGIN');
     const result = await fn(client);
-    await client.query('COMMIT');
+    if (queryParts.length === 0) return result;
+    const fullSQL = `BEGIN;\n${queryParts.join(';\n')};\nCOMMIT;`;
+    runSQL(fullSQL);
     return result;
   } catch (err) {
-    await client.query('ROLLBACK');
+    try { runSQL('ROLLBACK'); } catch { /* ignore */ }
     throw err;
-  } finally {
-    client.release();
   }
 }
 
 /** Vérifie la connexion à la base (utilisé au démarrage). */
 export async function checkConnection(): Promise<void> {
-  const client = await pool.connect();
   try {
-    await client.query('SELECT 1');
-    console.log('[DB] Connexion PostgreSQL établie');
-  } finally {
-    client.release();
+    const rows = runSQL('SELECT 1 AS ok');
+    console.log('[DB] Connexion Supabase établie via proxy CLI');
+  } catch (e: any) {
+    console.error('[DB] Échec de connexion Supabase :', e.message);
+    throw e;
   }
 }
+
+/** Export par défaut pour compatibilité. */
+const defaultExport = { query, queryOne, withTransaction, checkConnection };
+export default defaultExport;

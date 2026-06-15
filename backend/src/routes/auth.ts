@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { z }  from 'zod';
 
-import { withTransaction, queryOne } from '../lib/database';
+import { query, queryOne } from '../lib/database';
 import { signAuthToken, signVerifyEmailToken, verifyEmailToken } from '../lib/jwt';
 import { loginTracker } from '../lib/rateLimit';
 import { sendEmailVerification } from '../lib/mailer';
@@ -94,43 +94,49 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     // Hasher le PIN — jamais loggé, jamais retourné
     const pinHash = await bcrypt.hash(pin, BCRYPT_ROUNDS);
 
-    // Transaction : créer utilisateur + consentements
-    const user = await withTransaction(async (client) => {
-      const userRow = await client.query<UserRow>(
-        `INSERT INTO users
+    // Transaction : créer utilisateur + consentements + famille en UNE requête CTE
+    const rows = await query<UserRow & { family_id: string; family_name: string; family_status: string }>(
+      `WITH ins_user AS (
+         INSERT INTO users
            (first_name, last_name, email, phone, address, birth_date,
             role, parent_type, status, children_count,
             pin_hash, language)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-         RETURNING *`,
-        [
-          firstName, lastName, email,
-          phone     ?? null,
-          address   ?? null,
-          birthDate ?? null,
-          role,
-          parentType ?? null,
-          status     ?? null,
-          childrenCount,
-          pinHash,
-          language,
-        ]
-      );
-
-      await client.query(
-        `INSERT INTO consents
+         RETURNING *
+       ),
+       _consent AS (
+         INSERT INTO consents
            (user_id, cgu_accepted, data_processing_accepted,
             children_data_accepted, newsletter_accepted, ip_address)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [
-          userRow.rows[0].id,
-          consentCgu, consentData, consentChildren, consentNewsletter,
-          req.ip ?? null,
-        ]
-      );
+           SELECT ins_user.id, $13, $14, $15, $16, $17
+           FROM ins_user
+       ),
+       ins_family AS (
+         INSERT INTO families (name, parent_a_id, status)
+         SELECT 'Famille de ' || ins_user.first_name, ins_user.id, 'solo'
+         FROM ins_user
+         RETURNING id AS family_id, name AS family_name, status AS family_status
+       )
+       SELECT ins_user.*, ins_family.family_id, ins_family.family_name, ins_family.family_status
+       FROM ins_user, ins_family`,
+      [
+        firstName, lastName, email,
+        phone     ?? null,
+        address   ?? null,
+        birthDate ?? null,
+        role,
+        parentType ?? null,
+        status     ?? null,
+        childrenCount,
+        pinHash,
+        language,
+        consentCgu, consentData, consentChildren, consentNewsletter,
+        req.ip ?? null,
+      ]
+    );
 
-      return userRow.rows[0];
-    });
+    const user = rows[0]!;
+    const family = { id: rows[0]!.family_id, name: rows[0]!.family_name, status: rows[0]!.family_status };
 
     // Générer le token de vérification email et l'envoyer
     const verifyToken = signVerifyEmailToken(user.id, user.email);
@@ -146,7 +152,7 @@ router.post('/register', async (req: Request, res: Response): Promise<void> => {
     const token = signAuthToken({ userId: user.id, email: user.email, role: user.role });
 
     // ⚠️ Le PIN en clair est maintenant hors scope — on ne le logue jamais
-    res.status(201).json({ user: toPublicUser(user), token });
+    res.status(201).json({ user: toPublicUser(user), family, token });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Erreur inconnue';
     console.error('[AUTH] register :', message);
@@ -177,7 +183,7 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
 
   try {
     const user = await queryOne<UserRow>(
-      'SELECT id, first_name, last_name, email, phone, address, birth_date, age, role, parent_type, status, children_count, pin_hash, push_token, onboarding_completed, language, theme_id, calendar_color, calendar_color_text, email_verified, created_at, updated_at FROM users WHERE email = $1',
+      'SELECT id, first_name, last_name, email, phone, address, birth_date, role, parent_type, status, children_count, pin_hash, push_token, onboarding_completed, language, theme_id, calendar_color, calendar_color_text, email_verified, created_at, updated_at FROM users WHERE email = $1',
       [email]
     );
     // Délai constant pour éviter le timing attack
@@ -303,7 +309,7 @@ router.post('/resend-verification', async (req: Request, res: Response): Promise
 router.get('/me', requireAuth, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const user = await queryOne<UserRow>(
-      'SELECT id, first_name, last_name, email, phone, address, birth_date, age, role, parent_type, status, children_count, push_token, onboarding_completed, language, theme_id, calendar_color, calendar_color_text, email_verified, created_at, updated_at FROM users WHERE id = $1',
+      'SELECT id, first_name, last_name, email, phone, address, birth_date, role, parent_type, status, children_count, push_token, onboarding_completed, language, theme_id, calendar_color, calendar_color_text, email_verified, created_at, updated_at FROM users WHERE id = $1',
       [req.user!.id]
     );
 

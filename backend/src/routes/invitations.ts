@@ -190,8 +190,8 @@ router.post('/accept', requireAuth, async (req: AuthRequest, res: Response) => {
         id: string; first_name: string; birth_date: string;
         age: number; calendar_color: string; calendar_color_text: string;
       }>(
-        `SELECT id, first_name, birth_date, age, calendar_color, calendar_color_text
-         FROM family_children WHERE family_id = $1 ORDER BY birth_date`,
+        `SELECT id, first_name, birth_date, calendar_color, calendar_color_text
+         FROM children WHERE family_id = $1 ORDER BY birth_date`,
         [invitation.family_id]
       );
       const children = childrenRows.rows;
