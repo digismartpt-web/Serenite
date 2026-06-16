@@ -166,15 +166,12 @@ router.post(
       return;
     }
 
-    const expense = await withTransaction(async (client) => {
-      const row = await client.query(
-        `INSERT INTO expenses (family_id, paid_by, title, amount, category, expense_date, split_ratio, notes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-         RETURNING *`,
-        [familyId, userId, title, amount, category, expenseDate, splitRatio, notes ?? null]
-      );
-      return row.rows[0];
-    });
+    const expense = await queryOne<Record<string, unknown>>(
+      `INSERT INTO expenses (family_id, paid_by, title, amount, category, expense_date, split_ratio, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING *`,
+      [familyId, userId, title, amount, category, expenseDate, splitRatio, notes ?? null]
+    );
 
     res.status(201).json({ expense });
   }

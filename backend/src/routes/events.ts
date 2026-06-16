@@ -117,25 +117,21 @@ router.post(
       return;
     }
 
-    const event = await withTransaction(async (client) => {
-      const row = await client.query(
-        `INSERT INTO events (family_id, created_by, title, description, start_at, end_at, all_day, category, color)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-         RETURNING *`,
-        [familyId, userId, title, description ?? null, startAt, endAt, allDay, category, color ?? null]
-      );
-      const ev = row.rows[0];
+    const event = await queryOne<Record<string, unknown>>(
+      `INSERT INTO events (family_id, created_by, title, description, start_at, end_at, all_day, category, color)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
+       RETURNING *`,
+      [familyId, userId, title, description ?? null, startAt, endAt, allDay, category, color ?? null]
+    );
 
-      if (childrenIds.length > 0) {
-        for (const childId of childrenIds) {
-          await client.query(
-            `INSERT INTO event_children (event_id, child_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
-            [ev.id, childId]
-          );
-        }
+    if (childrenIds.length > 0 && event) {
+      for (const childId of childrenIds) {
+        await query(
+          `INSERT INTO event_children (event_id, child_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`,
+          [event.id, childId]
+        );
       }
-      return ev;
-    });
+    }
 
     res.status(201).json({ event });
   }

@@ -192,10 +192,11 @@ router.post(
       record_date: string;
       created_at: string;
     }>(
-      `INSERT INTO health_records (child_id, created_by, record_type, title, description, record_date, doctor_name, notes, file_path)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO health_records (family_id, child_id, created_by, record_type, title, description, record_date, doctor_name, notes, file_path)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, child_id, record_type, title, record_date, created_at`,
       [
+        familyId,
         childId,
         userId,
         recordType,
