@@ -57,7 +57,7 @@ function TabsContent() {
   // ── Vérification JWT au montage ───────────────────────────
   useEffect(() => {
     SecureStore.getItemAsync(SECURE_TOKEN).then((token) => {
-      if (!token) router.replace('/onboarding/step1');
+      if (!token) router.replace('/auth/login');
     });
   }, []);
 

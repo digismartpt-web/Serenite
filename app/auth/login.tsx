@@ -63,16 +63,12 @@ export default function LoginScreen() {
       if (pendingInvite) {
         try { localStorage.removeItem('serenite_pending_invite'); } catch {}
         const target = `/invite/join?token=${pendingInvite}`;
-        setTimeout(() => {
-          try { router.replace(target); } catch {}
-          if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/invite/join')) {
-            window.location.href = target;
-          }
-        }, 100);
+        router.replace(target);
+        if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/invite/join')) {
+          window.location.href = target;
+        }
       } else {
-        setTimeout(() => {
-          try { router.replace('/(tabs)/home'); } catch {}
-        }, 100);
+        router.replace('/(tabs)/home');
       }
     } catch {
       setError(t('auth.login.err.server'));

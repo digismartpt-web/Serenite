@@ -103,7 +103,7 @@ export default function HomeScreen() {
     const threeMonths = new Date(now);
     threeMonths.setMonth(threeMonths.getMonth() + 3);
     fetch(
-      `${API_BASE}/api/events?familyId=${familyId}&from=${encodeURIComponent(now.toISOString())}&to=${encodeURIComponent(threeMonths.toISOString())}`,
+      `${API_BASE}/api/calendar?familyId=${familyId}&from=${encodeURIComponent(now.toISOString())}&to=${encodeURIComponent(threeMonths.toISOString())}`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
       .then((r) => r.json())

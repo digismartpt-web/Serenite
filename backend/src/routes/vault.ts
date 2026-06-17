@@ -130,7 +130,7 @@ router.post(
         filePath,
         fileType ?? null,
         fileSize ?? null,
-        category ?? null,
+        category ?? 'other',
       ]
     );
 

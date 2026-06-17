@@ -96,6 +96,7 @@ const voiceLimiter = rateLimit({
   message: { error: 'Trop de requêtes vocales. Réessayez dans une minute.' },
 });
 
+app.set('trust proxy', 1); // Nécessaire pour req.ip derrière Traefik/Coolify
 app.use(globalLimiter);
 
 // ── Sécurité : Helmet ────────────────────────────────────────
@@ -158,7 +159,6 @@ app.use(express.json({ limit: '100kb' })); // Limite raisonnable pour l'API
 app.use(express.urlencoded({ extended: false }));
 
 // ── Sécurité : ne jamais exposer la stack en production ───────
-app.set('trust proxy', 'loopback,linklocal,uniquelocal'); // Nécessaire pour req.ip derrière Traefik/Coolify (plusieurs couches de proxy)
 
 // ─── Rate limiters spécifiques ─────────────────────────────────
 app.use('/api/auth/register', registerLimiter);
@@ -185,16 +185,16 @@ app.use('/api/mediators',     mediatorsRouter);
 // Nouvelles fonctionnalités
 app.use('/api/uploads',    uploadRoutes);
 app.use('/api/vault',      vaultRoutes);
+// ── Health check (utilisé par Coolify pour le liveness probe) ─
+app.get('/api/health', (_req, res) => {
+  res.json({ status: 'ok', version: '1.0.0', timestamp: new Date() });
+});
 app.use('/api/health',     healthRoutes);
 app.use('/api/exports',    exportRoutes);
 
 // Servir les fichiers uploads
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
-// ── Health check (utilisé par Coolify pour le liveness probe) ─
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', version: '1.0.0', timestamp: new Date() });
-});
 
 // Alias legacy
 app.get('/health', (_req, res) => {

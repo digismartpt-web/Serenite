@@ -1,78 +1,45 @@
 /**
- * Database layer — Supabase CLI proxy.
+ * Database layer — pg.Pool direct connection.
  *
- * Utilise `supabase db query --linked` qui passe par l'API Management.
- * Chaque appel exécute les requêtes dans une connexion PostgreSQL
- * unique — les CTE (WITH) permettent les opérations multi-tables.
+ * Remplace l'ancien proxy CLI Supabase par une connexion PostgreSQL
+ * directe via pg.Pool, avec gestion des transactions réelles.
  *
- * Variables d'environnement (non utilisées directement ici — la
- * connexion passe par la config `supabase link` dans le dossier) :
- *   DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD
+ * Variables d'environnement :
+ *   DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD / DB_POOL_MAX
  */
 
-import { execSync } from 'child_process';
-import * as fs from 'fs';
-import * as path from 'path';
-import * as os from 'os';
+import { Pool, PoolClient } from 'pg';
+import dotenv from 'dotenv';
 
-const PROJECT_DIR = path.resolve(__dirname, '../../..');
+dotenv.config();
 
-// ─── Interface TransactionClient ──────────────────────────────
+const pool = new Pool({
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432', 10),
+  database: process.env.DB_NAME || 'postgres',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || '',
+  max: parseInt(process.env.DB_POOL_MAX || '10', 10),
+  ssl: process.env.DB_SSL !== 'false'
+    ? { rejectUnauthorized: false }
+    : false,
+});
+
+// ─── Type réexporté pour compatibilité ─────────────────────
 
 export interface TransactionClient {
   query<T = any>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }>;
 }
 
-// ─── Proxy CLI Supabase ───────────────────────────────────────
-
-function interpolate(sql: string, params: unknown[]): string {
-  return sql.replace(/\$(\d+)/g, (_match, num) => {
-    const idx = parseInt(num, 10) - 1;
-    if (idx < 0 || idx >= params.length) return _match;
-    const val = params[idx];
-    if (val === null || val === undefined) return 'NULL';
-    if (typeof val === 'number') return String(val);
-    if (typeof val === 'boolean') return val ? 'true' : 'false';
-    const str = String(val).replace(/'/g, "''");
-    return `'${str}'`;
-  });
-}
-
-function runSQL(sql: string): any[] {
-  const tmpFile = path.join(os.tmpdir(), `serenite-sql-${Date.now()}-${Math.random().toString(36).slice(2)}.sql`);
-  try {
-    fs.writeFileSync(tmpFile, sql, 'utf-8');
-    const result = execSync(
-      `supabase db query --linked --output json --file "${tmpFile}"`,
-      {
-        cwd: PROJECT_DIR,
-        encoding: 'utf-8',
-        timeout: 60000,
-        maxBuffer: 10 * 1024 * 1024,
-      }
-    );
-    const trimmed = result.trim();
-    if (!trimmed || trimmed === '[]') return [];
-    return JSON.parse(trimmed);
-  } catch (e: any) {
-    const stderr = e.stderr || '';
-    const stdout = e.stdout || '';
-    const msg = stderr.replace(/Initialising login role\.\.\.\n?/g, '').trim() || e.message;
-    throw new Error(`[DB Proxy] ${msg}`);
-  } finally {
-    try { fs.unlinkSync(tmpFile); } catch { /* ignore */ }
-  }
-}
-
-// ─── Requêtes ─────────────────────────────────────────────────
+// ─── Requêtes ─────────────────────────────────────────────
 
 /** Exécute une requête et retourne toutes les lignes. */
 export async function query<T = Record<string, unknown>>(
   text: string,
   params?: unknown[]
 ): Promise<T[]> {
-  const sql = params ? interpolate(text, params) : text;
-  return runSQL(sql) as T[];
+  const result = await pool.query(text, params);
+  return result.rows as T[];
 }
 
 /** Exécute une requête et retourne la première ligne ou null. */
@@ -86,48 +53,32 @@ export async function queryOne<T = Record<string, unknown>>(
 
 /**
  * Exécute un ensemble d'opérations dans une transaction atomique.
- *
- * Collecte toutes les requêtes et les exécute en UN SEUL appel CLI,
- * ce qui garantit une vraie transaction (BEGIN + requêtes + COMMIT
- * dans la même connexion PostgreSQL).
- *
- * ATTENTION : chaque client.query() retourne un résultat VIDE
- * (placeholders) — les vraies valeurs ne sont visibles qu'après
- * COMMIT. Les routes qui utilisent withTransaction doivent être
- * adaptées avec des CTE en une seule requête.
+ * Utilise une vraie connexion PostgreSQL avec BEGIN/COMMIT/ROLLBACK.
  */
 export async function withTransaction<T>(
   fn: (client: TransactionClient) => Promise<T>
 ): Promise<T> {
-  const queryParts: string[] = [];
-
-  const client: TransactionClient = {
-    query: async <TResult = any>(text: string, params?: unknown[]) => {
-      const sql = params ? interpolate(text, params) : text;
-      queryParts.push(sql);
-      return { rows: [] as TResult[], rowCount: 0 };
-    },
-  };
-
+  const client: PoolClient = await pool.connect();
   try {
+    await client.query('BEGIN');
     const result = await fn(client);
-    if (queryParts.length === 0) return result;
-    const fullSQL = `BEGIN;\n${queryParts.join(';\n')};\nCOMMIT;`;
-    runSQL(fullSQL);
+    await client.query('COMMIT');
     return result;
   } catch (err) {
-    try { runSQL('ROLLBACK'); } catch { /* ignore */ }
+    await client.query('ROLLBACK').catch(() => {});
     throw err;
+  } finally {
+    client.release();
   }
 }
 
 /** Vérifie la connexion à la base (utilisé au démarrage). */
 export async function checkConnection(): Promise<void> {
   try {
-    const rows = runSQL('SELECT 1 AS ok');
-    console.log('[DB] Connexion Supabase établie via proxy CLI');
+    const result = await pool.query('SELECT 1 AS ok');
+    console.log('[DB] Connexion PostgreSQL établie via pg.Pool');
   } catch (e: any) {
-    console.error('[DB] Échec de connexion Supabase :', e.message);
+    console.error('[DB] Échec de connexion PostgreSQL :', e.message);
     throw e;
   }
 }
