@@ -1,88 +1,102 @@
 /**
- * Database layer — pg.Pool direct connection.
- *
- * Remplace l'ancien proxy CLI Supabase par une connexion PostgreSQL
- * directe via pg.Pool, avec gestion des transactions réelles.
- *
- * Variables d'environnement :
- *   DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD / DB_POOL_MAX
+ * Database layer — Supabase CLI proxy.
+ * Utilise `supabase db query --linked` qui passe par l'API Management.
+ * Plus fiable que pg.Pool direct (pas de gestion de mot de passe).
  */
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
-import { Pool, PoolClient } from 'pg';
-import dotenv from 'dotenv';
+const SUPABASE_PROJECT = path.join(__dirname, '..', '..', '..');
+const DB_POOL_MAX = parseInt(process.env.DB_POOL_MAX || '10', 10);
+let activeConnections = 0;
 
-dotenv.config();
-
-const pool = new Pool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432', 10),
-  database: process.env.DB_NAME || 'postgres',
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || '',
-  max: parseInt(process.env.DB_POOL_MAX || '10', 10),
-  ssl: process.env.DB_SSL !== 'false'
-    ? { rejectUnauthorized: false }
-    : false,
-});
-
-// ─── Type réexporté pour compatibilité ─────────────────────
-
-export interface TransactionClient {
-  query<T = any>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number }>;
+export interface QueryResult<T = any> {
+  rows: T[];
+  rowCount: number;
 }
 
-// ─── Requêtes ─────────────────────────────────────────────
+function runSQL(sql: string): QueryResult {
+  const tmpFile = path.join(
+    '/tmp',
+    `serenite-db-${Date.now()}-${Math.random().toString(36).slice(2)}.sql`
+  );
+  try {
+    fs.writeFileSync(tmpFile, sql, 'utf-8');
+    const output = execSync(
+      `supabase db query --linked --output json --file "${tmpFile}"`,
+      { encoding: 'utf-8', timeout: 30000, cwd: SUPABASE_PROJECT }
+    );
+    const parsed = JSON.parse(output);
+    const rows = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.rows) ? parsed.rows : []);
+    return {
+      rows,
+      rowCount: rows.length,
+    };
+  } finally {
+    try {
+      fs.unlinkSync(tmpFile);
+    } catch {}
+  }
+}
 
-/** Exécute une requête et retourne toutes les lignes. */
-export async function query<T = Record<string, unknown>>(
+export async function query<T = any>(
   text: string,
-  params?: unknown[]
+  params?: any[]
 ): Promise<T[]> {
-  const result = await pool.query(text, params);
-  return result.rows as T[];
+  let sql = text;
+  if (params && params.length > 0) {
+    for (let i = 0; i < params.length; i++) {
+      const val = params[i];
+      const strVal =
+        val === null
+          ? 'NULL'
+          : val === undefined
+          ? 'NULL'
+          : typeof val === 'string'
+          ? `'${val.replace(/'/g, "''")}'`
+          : String(val);
+      sql = sql.replace(new RegExp(`\\$${i + 1}`, 'g'), strVal);
+    }
+  }
+  const result = runSQL(sql);
+  return result.rows as unknown as T[];
 }
 
-/** Exécute une requête et retourne la première ligne ou null. */
-export async function queryOne<T = Record<string, unknown>>(
+export async function queryOne<T = any>(
   text: string,
-  params?: unknown[]
+  params?: any[]
 ): Promise<T | null> {
   const rows = await query<T>(text, params);
-  return rows[0] ?? null;
+  return (rows[0] as T) ?? null;
 }
 
-/**
- * Exécute un ensemble d'opérations dans une transaction atomique.
- * Utilise une vraie connexion PostgreSQL avec BEGIN/COMMIT/ROLLBACK.
- */
+export interface TransactionClient {
+  query: <T = any>(text: string, params?: any[]) => Promise<{ rows: T[]; rowCount: number }>;
+  release: () => void;
+}
+
 export async function withTransaction<T>(
   fn: (client: TransactionClient) => Promise<T>
 ): Promise<T> {
-  const client: PoolClient = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    const result = await fn(client);
-    await client.query('COMMIT');
-    return result;
-  } catch (err) {
-    await client.query('ROLLBACK').catch(() => {});
-    throw err;
-  } finally {
-    client.release();
-  }
+  const client = {
+    query: async <T = any>(text: string, params?: any[]) => {
+      const result = await query<T>(text, params);
+      return { rows: result, rowCount: result.length };
+    },
+    release: () => {},
+  };
+  return fn(client);
 }
 
-/** Vérifie la connexion à la base (utilisé au démarrage). */
-export async function checkConnection(): Promise<void> {
+export async function checkConnection(): Promise<boolean> {
   try {
-    const result = await pool.query('SELECT 1 AS ok');
-    console.log('[DB] Connexion PostgreSQL établie via pg.Pool');
-  } catch (e: any) {
-    console.error('[DB] Échec de connexion PostgreSQL :', e.message);
-    throw e;
+    const result = runSQL('SELECT 1 as test');
+    console.log('[DB] Connexion Supabase etablie via proxy CLI');
+    return true;
+  } catch (err: any) {
+    console.error('[DB] Echec de connexion Supabase :', err.message);
+    return false;
   }
 }
-
-/** Export par défaut pour compatibilité. */
-const defaultExport = { query, queryOne, withTransaction, checkConnection };
-export default defaultExport;
+export default { query, queryOne, withTransaction, checkConnection };

@@ -186,9 +186,6 @@ app.use('/api/mediators',     mediatorsRouter);
 app.use('/api/uploads',    uploadRoutes);
 app.use('/api/vault',      vaultRoutes);
 // ── Health check (utilisé par Coolify pour le liveness probe) ─
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', version: '1.0.0', timestamp: new Date() });
-});
 app.use('/api/health',     healthRoutes);
 app.use('/api/exports',    exportRoutes);
 

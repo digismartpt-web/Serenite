@@ -9,7 +9,7 @@ const SecureStore = Platform.OS === 'web'
     }
   : require('expo-secure-store');
 
-const API_BASE        = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_BASE } from '../constants/api';
 const SECURE_TOKEN    = 'serenite_auth_token';
 
 // ─── Types ────────────────────────────────────────────────────

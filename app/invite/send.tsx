@@ -19,7 +19,7 @@ import InviteCodeDisplay from '../../components/invite/InviteCodeDisplay';
 import { useAuth } from '../hooks/useAuth';
 import { useTranslation } from '../../i18n/useTranslation';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_BASE } from '../constants/api';
 const POLL_INTERVAL_MS = 5000;
 
 interface InvitationData {

@@ -13,7 +13,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useTranslation } from '../../i18n/useTranslation';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_BASE } from '../constants/api';
 
 // Palette de couleurs calendrier (swatch picker)
 const COLOR_SWATCHES = [

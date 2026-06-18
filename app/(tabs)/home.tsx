@@ -11,7 +11,7 @@ import { useTranslation } from '../../i18n/useTranslation';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth }  from '../hooks/useAuth';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_BASE } from '../constants/api';
 
 // ─── Types ────────────────────────────────────────────────────
 

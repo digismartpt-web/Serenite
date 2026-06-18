@@ -4,7 +4,8 @@
 
 // Note: la valeur vient de .env (EXPO_PUBLIC_API_URL) — rebuild si l'URL change
 export const API_URL =
-  process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+  process.env.EXPO_PUBLIC_API_URL || 'https://serenite.newappai.com';
+export const API_BASE = API_URL;
 
 export const ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001';
 

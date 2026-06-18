@@ -13,7 +13,7 @@ import { useAuth }   from '../hooks/useAuth';
 import { useTranslation, tList, weekDays, shortMonths } from '../../i18n/useTranslation';
 import { type LangCode } from '../../i18n/translations';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
+import { API_BASE } from '../constants/api';
 
 // ─── Types ────────────────────────────────────────────────────
 

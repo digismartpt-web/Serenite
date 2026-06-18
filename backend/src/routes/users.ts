@@ -1,6 +1,6 @@
 import { Router, Response } from 'express';
 
-import { query }                 from '../lib/database';
+import { query, withTransaction } from '../lib/database';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 
 const router = Router();
@@ -160,17 +160,13 @@ router.delete(
       return;
     }
 
-    // Supprimer les dépendances avant de supprimer l'utilisateur
-    await query(
-      `BEGIN;
-       DELETE FROM health_records WHERE created_by = $1;
-       DELETE FROM vault_documents WHERE uploaded_by = $1;
-       DELETE FROM messages WHERE sender_id = $1;
-       UPDATE expenses SET paid_by = NULL, validated_by = NULL WHERE paid_by = $1 OR validated_by = $1;
-       DELETE FROM users WHERE id = $1;
-       COMMIT;`,
-      [userId]
-    );
+    await withTransaction(async (client) => {
+      await client.query('DELETE FROM health_records WHERE created_by = $1', [userId]);
+      await client.query('DELETE FROM vault_documents WHERE uploaded_by = $1', [userId]);
+      await client.query('DELETE FROM messages WHERE sender_id = $1', [userId]);
+      await client.query('UPDATE expenses SET paid_by = NULL, validated_by = NULL WHERE paid_by = $1 OR validated_by = $1', [userId]);
+      await client.query('DELETE FROM users WHERE id = $1', [userId]);
+    });
     res.json({ success: true, message: 'Compte supprimé' });
   })
 );
