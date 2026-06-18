@@ -11,9 +11,9 @@ const SecureStore = typeof window !== 'undefined' && window.localStorage
 
 import { useOnboarding } from '../../contexts/OnboardingContext';
 import { useTranslation } from '../../i18n/useTranslation';
+import { API_URL as API_BASE } from '../constants/api';
 
 // ─── Config ────────────────────────────────────────────────────
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 const SECURE_TOKEN_KEY = 'serenite_auth_token';
 
 // ─── Types ─────────────────────────────────────────────────────

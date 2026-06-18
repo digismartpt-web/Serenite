@@ -11,8 +11,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../context/ThemeContext';
 import { useAuth }  from '../hooks/useAuth';
 import { useTranslation } from '../../i18n/useTranslation';
+import { API_URL as API_BASE } from '../constants/api';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3000';
 
 // ─── Types ────────────────────────────────────────────────────
 

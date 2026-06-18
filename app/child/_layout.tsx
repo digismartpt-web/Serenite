@@ -138,6 +138,7 @@ function PinScreen({ onSuccess }: { onSuccess: () => void }) {
 // ─── Layout principal ──────────────────────────────────────────
 
 export default function ChildLayout() {
+  const { t } = useTranslation();
   const [unlocked, setUnlocked] = useState(false);
 
   if (!unlocked) {

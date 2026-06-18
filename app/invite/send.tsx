@@ -123,7 +123,7 @@ export default function SendInviteScreen() {
     if (!available) { alert(t('invite.emailNotAvailable')); return; }
     await Mail.composeAsync({
       subject: t('invite.emailSubject'),
-      body: buildShareMessage(),
+      html: buildShareMessage().split("\n").join("<br>"),
     });
   }
 

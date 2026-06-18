@@ -46,6 +46,13 @@ export async function query<T = any>(
 ): Promise<T[]> {
   let sql = text;
   if (params && params.length > 0) {
+    // PASS 1: Replace $N placeholders with ##N## markers
+    // This prevents bcrypt hashes ($2a$10$...) from being corrupted
+    for (let i = 0; i < params.length; i++) {
+      const re = new RegExp(`\\$${i + 1}(?![0-9])`, 'g');
+      sql = sql.replace(re, `##${i + 1}##`);
+    }
+    // PASS 2: Replace ##N## markers with actual values
     for (let i = 0; i < params.length; i++) {
       const val = params[i];
       const strVal =
@@ -56,7 +63,7 @@ export async function query<T = any>(
           : typeof val === 'string'
           ? `'${val.replace(/'/g, "''")}'`
           : String(val);
-      sql = sql.replace(new RegExp(`\\$${i + 1}`, 'g'), strVal);
+      sql = sql.replace(`##${i + 1}##`, strVal);
     }
   }
   const result = runSQL(sql);
