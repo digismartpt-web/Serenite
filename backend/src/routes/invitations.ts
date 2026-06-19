@@ -87,7 +87,7 @@ router.post('/create', requireAuth, async (req: AuthRequest, res: Response) => {
       [familyId, userId, code, token, linkExpiresAt.toISOString()]
     );
 
-    const appLink = `${process.env.APP_URL ?? 'https://serenite.app'}/invite/join?token=${token}`;
+    const appLink = `${process.env.APP_URL ?? 'https://serenite.newappai.com'}/invite/join?token=${token}`;
     const deepLink = `serenite://join/${token}`;
 
     res.status(201).json({

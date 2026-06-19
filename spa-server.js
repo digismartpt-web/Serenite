@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const PORT = 8766;
+const API_PORT = 3000;
 const DIST = path.join(__dirname, 'dist');
 
 const MIME = {
@@ -21,6 +22,28 @@ const MIME = {
 
 http.createServer((req, res) => {
   let url = req.url.split('?')[0];
+
+  // Proxy /api/* requests to the backend
+  if (url.startsWith('/api/') || url === '/api') {
+    const proxyReq = http.request({
+      hostname: '127.0.0.1',
+      port: API_PORT,
+      path: req.url,
+      method: req.method,
+      headers: { ...req.headers, host: `127.0.0.1:${API_PORT}` },
+    }, (proxyRes) => {
+      res.writeHead(proxyRes.statusCode, proxyRes.headers);
+      proxyRes.pipe(res);
+    });
+    proxyReq.on('error', (err) => {
+      console.error('[SPA proxy] Error:', err.message);
+      res.writeHead(502, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Backend indisponible' }));
+    });
+    req.pipe(proxyReq);
+    return;
+  }
+
   if (url === '/') url = '/index.html';
 
   const filePath = path.join(DIST, url);

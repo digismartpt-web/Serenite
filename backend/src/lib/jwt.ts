@@ -9,9 +9,15 @@ export interface JwtPayload {
 }
 
 export interface VerifyEmailPayload {
-  userId: string;
-  email:  string;
+  userId:  string;
+  email:   string;
   purpose: 'email-verification';
+}
+
+export interface PinResetPayload {
+  userId:   string;
+  codeHash: string;
+  purpose:  'pin-reset';
 }
 
 // ─── Helpers ──────────────────────────────────────────────────
@@ -47,6 +53,19 @@ export function signVerifyEmailToken(userId: string, email: string): string {
   });
 }
 
+/**
+ * Génère un JWT de réinitialisation de PIN (15 minutes).
+ * Contient le hash du code à 6 chiffres — le code en clair n'est jamais stocké.
+ */
+export function signPinResetToken(userId: string, codeHash: string): string {
+  const payload: PinResetPayload = { userId, codeHash, purpose: 'pin-reset' };
+  return jwt.sign(payload, secret(), {
+    expiresIn: '15m',
+    issuer:    'serenite-api',
+    audience:  'serenite-pin-reset',
+  });
+}
+
 /** Vérifie et décode un JWT d'authentification. */
 export function verifyAuthToken(token: string): JwtPayload {
   return jwt.verify(token, secret(), {
@@ -63,6 +82,19 @@ export function verifyEmailToken(token: string): VerifyEmailPayload {
   }) as VerifyEmailPayload;
 
   if (payload.purpose !== 'email-verification') {
+    throw new Error('Token invalide : mauvais usage');
+  }
+  return payload;
+}
+
+/** Vérifie et décode un JWT de réinitialisation de PIN. */
+export function verifyPinResetToken(token: string): PinResetPayload {
+  const payload = jwt.verify(token, secret(), {
+    issuer:   'serenite-api',
+    audience: 'serenite-pin-reset',
+  }) as PinResetPayload;
+
+  if (payload.purpose !== 'pin-reset') {
     throw new Error('Token invalide : mauvais usage');
   }
   return payload;

@@ -7,10 +7,6 @@ import FormData             from 'form-data';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { DEEPSEEK_API_URL, DEEPSEEK_API_KEY, DEEPSEEK_MODEL, CNV_SYSTEM_PROMPT } from '../services/ai/deepseekClient';
 
-// Whisper (STT) — peut être un service différent de DeepSeek
-const WHISPER_API_URL = process.env.WHISPER_API_URL || 'https://api.openai.com/v1';
-const WHISPER_API_KEY = process.env.WHISPER_API_KEY || process.env.DEEPSEEK_API_KEY || "";
-
 const router  = Router();
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
@@ -78,21 +74,18 @@ router.post(
     try {
       // Créer un FormData pour le forward vers DeepSeek Whisper
       const formData = new FormData();
-      // Utiliser Buffer (pas Blob) — form-data en Node.js attend un Buffer/Stream
-      formData.append('file', req.file.buffer, {
-        filename: req.file.originalname || 'audio.wav',
-        contentType: req.file.mimetype,
-      });
+      const blob = new Blob([uint8], { type: req.file.mimetype });
+      formData.append('file', blob, req.file.originalname || 'audio.wav');
       formData.append('model', 'whisper-1');
       formData.append('language', 'fr');
       formData.append('response_format', 'json');
 
       const dsResponse = await axios.post(
-        `${WHISPER_API_URL}/audio/transcriptions`,
+        `${DEEPSEEK_API_URL}/audio/transcriptions`,
         formData,
         {
           headers: {
-            'Authorization': `Bearer ${WHISPER_API_KEY}`,
+            'Authorization': `Bearer ${DEEPSEEK_API_KEY}`,
           },
           timeout: 30_000,
           maxBodyLength: 30 * 1024 * 1024,

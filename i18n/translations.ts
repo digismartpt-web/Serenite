@@ -140,6 +140,21 @@ export const T: TranslationMap = {
   'auth.login.err.pinLength': { fr: 'Le code secret doit faire 6 chiffres.', en: 'The secret code must be 6 digits.', es: 'El código secreto debe tener 6 dígitos.', pt: 'O código secreto deve ter 6 dígitos.' },
   'auth.login.err.invalid': { fr: 'Email ou code secret incorrect.',  en: 'Incorrect email or secret code.',   es: 'Correo o código secreto incorrecto.', pt: 'E-mail ou código secreto incorreto.' },
   'auth.login.err.server':  { fr: 'Une erreur est survenue. Réessayez.', en: 'An error occurred. Try again.',   es: 'Ocurrió un error. Intente de nuevo.', pt: 'Ocorreu um erro. Tente novamente.' },
+  'auth.login.forgotPin':           { fr: 'PIN oublié ?',                          en: 'Forgot PIN?',                       es: '¿Olvidó su PIN?',                   pt: 'Esqueceu o PIN?' },
+  'auth.login.forgotPinSubtitle':    { fr: 'Saisissez votre adresse email pour recevoir un code de réinitialisation.', en: 'Enter your email address to receive a reset code.', es: 'Ingrese su correo para recibir un código de restablecimiento.', pt: 'Digite seu e-mail para receber um código de redefinição.' },
+  'auth.login.forgotPinSendCode':    { fr: 'Envoyer le code',                        en: 'Send code',                          es: 'Enviar código',                      pt: 'Enviar código' },
+  'auth.login.forgotPinSent':        { fr: 'Un code à 6 chiffres a été envoyé à votre adresse email.', en: 'A 6-digit code has been sent to your email.', es: 'Se ha enviado un código de 6 dígitos a su correo.', pt: 'Um código de 6 dígitos foi enviado para seu e-mail.' },
+  'auth.login.forgotPinEnterCode':   { fr: 'Saisissez le code reçu et votre nouveau PIN.', en: 'Enter the code you received and your new PIN.', es: 'Ingrese el código recibido y su nuevo PIN.', pt: 'Digite o código recebido e seu novo PIN.' },
+  'auth.login.forgotPinResend':      { fr: 'Renvoyer le code',                        en: 'Resend code',                          es: 'Reenviar código',                      pt: 'Reenviar código' },
+  'auth.login.forgotPinEmailRequired': { fr: 'Veuillez saisir votre adresse email.',   en: 'Please enter your email address.',     es: 'Ingrese su correo electrónico.',        pt: 'Digite seu endereço de e-mail.' },
+  'auth.login.resetPinCode':         { fr: 'Code reçu par email',                     en: 'Code received by email',               es: 'Código recibido por correo',            pt: 'Código recebido por e-mail' },
+  'auth.login.resetPinNewPin':       { fr: 'Nouveau PIN (6 chiffres)',                en: 'New PIN (6 digits)',                   es: 'Nuevo PIN (6 dígitos)',                 pt: 'Novo PIN (6 dígitos)' },
+  'auth.login.resetPinConfirmPin':   { fr: 'Confirmez le nouveau PIN',                en: 'Confirm new PIN',                      es: 'Confirmar nuevo PIN',                   pt: 'Confirmar novo PIN' },
+  'auth.login.resetPinMismatch':     { fr: 'Les PIN ne correspondent pas.',            en: 'PINs do not match.',                   es: 'Los PIN no coinciden.',                 pt: 'Os PINs não coincidem.' },
+  'auth.login.resetPinCodeRequired': { fr: 'Veuillez saisir le code à 6 chiffres reçu par email.', en: 'Please enter the 6-digit code received by email.', es: 'Ingrese el código de 6 dígitos recibido por correo.', pt: 'Digite o código de 6 dígitos recebido por e-mail.' },
+  'auth.login.resetPinBtn':          { fr: 'Réinitialiser mon PIN',                     en: 'Reset my PIN',                         es: 'Restablecer mi PIN',                    pt: 'Redefinir meu PIN' },
+  'auth.login.resetPinSuccess':      { fr: 'Votre PIN a été réinitialisé avec succès !', en: 'Your PIN has been reset successfully!', es: '¡Su PIN se ha restablecido con éxito!', pt: 'Seu PIN foi redefinido com sucesso!' },
+  'auth.login.resetPinBackToLogin':  { fr: 'Retour à la connexion',                     en: 'Back to login',                        es: 'Volver al inicio de sesión',             pt: 'Voltar ao login' },
 
   // ── Invite (Rejoindre la famille) ───────────────────────────
   'invite.title':        { fr: 'Rejoindre la famille',               en: 'Join the family',                  es: 'Unirse a la familia',              pt: 'Juntar-se à família' },
@@ -151,6 +166,10 @@ export const T: TranslationMap = {
   'invite.alternative':  { fr: 'Vous avez reçu un lien ? Appuyez dessus directement depuis votre messagerie\npour rejoindre automatiquement.', en: 'Got a link? Tap it directly from your messaging app\nto join automatically.', es: '¿Recibió un enlace? Tóquelo directamente desde su aplicación de mensajería\npara unirse automáticamente.', pt: 'Recebeu um link? Toque nele diretamente do seu aplicativo de mensagens\npara entrar automaticamente.' },
   'invite.error.connection': { fr: 'Erreur lors de la connexion',    en: 'Connection error',                 es: 'Error de conexión',                pt: 'Erro de conexão' },
   'invite.error.network': { fr: 'Impossible de contacter le serveur. Vérifiez votre connexion.', en: 'Unable to reach the server. Check your connection.', es: 'No se puede contactar el servidor. Verifique su conexión.', pt: 'Não foi possível contactar o servidor. Verifique sua conexão.' },
+  'invite.authRequiredTitle': { fr: 'Rejoindre la famille', en: 'Join the family', es: 'Unirse a la familia', pt: 'Juntar-se à família' },
+  'invite.authRequiredDesc':  { fr: 'Vous devez créer un compte ou vous connecter pour accepter l\'invitation', en: 'You need to create an account or log in to accept the invitation', es: 'Debe crear una cuenta o iniciar sesión para aceptar la invitación', pt: 'Você precisa criar uma conta ou fazer login para aceitar o convite' },
+  'invite.createAccount':     { fr: 'Créer un compte', en: 'Create an account', es: 'Crear una cuenta', pt: 'Criar uma conta' },
+  'invite.loginToAccept':     { fr: 'Se connecter', en: 'Log in', es: 'Iniciar sesión', pt: 'Entrar' },
 
   // ── Home (Accueil) ──────────────────────────────────────────
   'home.greeting.morning': { fr: 'Bonjour',                            en: 'Good morning',                     es: 'Buenos días',                      pt: 'Bom dia' },
@@ -352,6 +371,8 @@ export const T: TranslationMap = {
   'settings.manageFamilyDesc':    { fr: 'Coparent, enfants',                    en: 'Co-parent, children',               es: 'Coparental, hijos',                pt: 'Coparente, filhos' },
   'settings.childSpace':          { fr: 'Espace Enfant',                        en: 'Child Space',                      es: 'Espacio Infantil',                 pt: 'Espaço Infantil' },
   'settings.childSpaceDesc':      { fr: 'Interface violet adaptée aux enfants', en: 'Purple interface for children',    es: 'Interfaz violeta para niños',      pt: 'Interface violeta para crianças' },
+  'settings.addChild':            { fr: 'Ajouter un enfant',                    en: 'Add a child',                      es: 'Añadir un hijo',                   pt: 'Adicionar uma criança' },
+  'settings.addChildDesc':        { fr: 'Ajouter un enfant à votre famille',    en: 'Add a child to your family',       es: 'Añadir un hijo a su familia',      pt: 'Adicionar uma criança à sua família' },
   'settings.appearance':          { fr: 'Apparence',                            en: 'Appearance',                       es: 'Apariencia',                       pt: 'Aparência' },
   'settings.displayMode':         { fr: "Mode d'affichage",                     en: 'Display mode',                     es: 'Modo de visualización',            pt: 'Modo de exibição' },
   'settings.modeAuto':            { fr: 'Auto',                                 en: 'Auto',                             es: 'Auto',                             pt: 'Auto' },
@@ -474,7 +495,7 @@ export const T: TranslationMap = {
   'child.home.legendMom':         { fr: 'Maman',                             en: 'Mom',                              es: 'Mamá',                             pt: 'Mamãe' },
 
   // ── Child Checklist ─────────────────────────────────────────
-  'child.checklist.school':   { fr: 'Affaires de school',  en: 'School stuff',      es: 'Cosas del colegio',    pt: 'Coisas da escola' },
+  'child.checklist.school':   { fr: 'Affaires d’école',  en: 'School stuff',      es: 'Cosas del colegio',    pt: 'Coisas da escola' },
   'child.checklist.sport':    { fr: 'Tenue de sport',      en: 'Sports gear',       es: 'Ropa de deporte',     pt: 'Roupa de esporte' },
   'child.checklist.pyjama':   { fr: 'Pyjama',              en: 'Pyjamas',           es: 'Pijama',              pt: 'Pijama' },
   'child.checklist.doudou':   { fr: 'Doudou / Peluche',    en: 'Teddy / Plush',     es: 'Peluche',             pt: 'Ursinho / Pelúcia' },

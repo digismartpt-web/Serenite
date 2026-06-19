@@ -3,9 +3,9 @@ import bcrypt from 'bcryptjs';
 import { z }  from 'zod';
 
 import { query, queryOne } from '../lib/database';
-import { signAuthToken, signVerifyEmailToken, verifyEmailToken } from '../lib/jwt';
+import { signAuthToken, signVerifyEmailToken, verifyEmailToken, signPinResetToken, verifyPinResetToken } from '../lib/jwt';
 import { loginTracker } from '../lib/rateLimit';
-import { sendEmailVerification } from '../lib/mailer';
+import { sendEmailVerification, sendPinResetCode } from '../lib/mailer';
 import { requireAuth, AuthRequest } from '../middleware/auth';
 import { UserRow, toPublicUser } from '../types';
 
@@ -56,6 +56,19 @@ const UpdatePinSchema = z.object({
     .length(6)
     .regex(/^\d{6}$/, 'PIN actuel invalide'),
   newPin: z
+    .string()
+    .length(6, 'Le nouveau PIN doit comporter exactement 6 chiffres')
+    .regex(/^\d{6}$/, 'Le nouveau PIN doit être composé de 6 chiffres uniquement'),
+});
+
+const ForgotPinSchema = z.object({
+  email: z.string().email('Email invalide').transform((v) => v.toLowerCase().trim()),
+});
+
+const ResetPinSchema = z.object({
+  resetToken: z.string().min(1),
+  code:       z.string().length(6).regex(/^\d{6}$/, 'Le code doit être composé de 6 chiffres'),
+  newPin:     z
     .string()
     .length(6, 'Le nouveau PIN doit comporter exactement 6 chiffres')
     .regex(/^\d{6}$/, 'Le nouveau PIN doit être composé de 6 chiffres uniquement'),
@@ -300,6 +313,99 @@ router.post('/resend-verification', async (req: Request, res: Response): Promise
     const message = err instanceof Error ? err.message : 'Erreur inconnue';
     console.error('[AUTH] resend-verification :', message);
     res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── POST /api/auth/forgot-pin ────────────────────────────────
+
+router.post('/forgot-pin', async (req: Request, res: Response): Promise<void> => {
+  const parsed = ForgotPinSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({ error: 'Email invalide' });
+    return;
+  }
+
+  const { email } = parsed.data;
+
+  try {
+    const user = await queryOne<UserRow>(
+      'SELECT id, first_name, last_name, email FROM users WHERE email = $1',
+      [email]
+    );
+
+    // Toujours retourner le même message (ne pas révéler si l'email existe)
+    const genericMessage = 'Si cet email existe, un code de réinitialisation a été envoyé.';
+
+    if (!user) {
+      res.json({ success: true, message: genericMessage });
+      return;
+    }
+
+    // Générer un code à 6 chiffres
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+
+    // Hasher le code (comme un PIN)
+    const codeHash = await bcrypt.hash(code, BCRYPT_ROUNDS);
+
+    // Créer un JWT contenant le hash du code (expire dans 15 min)
+    const resetToken = signPinResetToken(user.id, codeHash);
+
+    // Envoyer le code par email (non bloquant)
+    sendPinResetCode(user.email, user.first_name, code).catch((err) =>
+      console.error('[AUTH] Échec envoi code réinitialisation PIN :', err.message)
+    );
+
+    res.json({ success: true, message: genericMessage, resetToken });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Erreur inconnue';
+    console.error('[AUTH] forgot-pin :', message);
+    res.status(500).json({ error: 'Erreur serveur' });
+  }
+});
+
+// ─── POST /api/auth/reset-pin ─────────────────────────────────
+
+router.post('/reset-pin', async (req: Request, res: Response): Promise<void> => {
+  const parsed = ResetPinSchema.safeParse(req.body);
+  if (!parsed.success) {
+    res.status(400).json({
+      error:  'Données invalides',
+      fields: parsed.error.flatten().fieldErrors,
+    });
+    return;
+  }
+
+  const { resetToken, code, newPin } = parsed.data;
+
+  try {
+    // Vérifier et décoder le JWT de réinitialisation
+    const payload = verifyPinResetToken(resetToken);
+
+    // Vérifier le code saisi par l'utilisateur
+    const codeValid = await bcrypt.compare(code, payload.codeHash);
+    if (!codeValid) {
+      res.status(400).json({ error: 'Code invalide ou expiré' });
+      return;
+    }
+
+    // Hasher le nouveau PIN
+    const newPinHash = await bcrypt.hash(newPin, BCRYPT_ROUNDS);
+
+    // Mettre à jour le PIN de l'utilisateur
+    await queryOne(
+      'UPDATE users SET pin_hash = $1, updated_at = NOW() WHERE id = $2',
+      [newPinHash, payload.userId]
+    );
+
+    res.json({ success: true, message: 'PIN réinitialisé avec succès' });
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : '';
+    if (message.includes('expired') || message.includes('invalid') || message.includes('Token')) {
+      res.status(400).json({ error: 'Lien de réinitialisation invalide ou expiré' });
+    } else {
+      console.error('[AUTH] reset-pin :', message);
+      res.status(500).json({ error: 'Erreur serveur' });
+    }
   }
 });
 

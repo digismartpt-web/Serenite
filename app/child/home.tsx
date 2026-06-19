@@ -9,6 +9,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTranslation } from '../../i18n/useTranslation';
 
+const SecureStore = Platform.OS === 'web'
+  ? { getItemAsync: async (k: string): Promise<string | null> => { try { return localStorage.getItem(k) } catch { return null } } }
+  : require('expo-secure-store');
+
+import { API_BASE } from '../constants/api';
+
 // ─── Constantes ───────────────────────────────────────────────
 
 const CHILD_PURPLE  = '#5B3FA0';
@@ -26,6 +32,7 @@ const MOOD_COLORS   = ['#FC8181', '#F6AD55', '#90CDF4', '#68D391', '#F6E05E'];
 const JOURNAL_KEY   = '@serenite/child_journal';
 const MOOD_KEY      = '@serenite/child_mood';
 const CHECKLIST_KEY = '@serenite/child_checklist';
+const TOKEN_KEY='serenite_auth_token';
 
 // ─── Items checklist sac ──────────────────────────────────────
 
@@ -41,19 +48,19 @@ const CHECKLIST_ITEMS = [
 
 // ─── Utilitaires ──────────────────────────────────────────────
 
-function getWeekDays(): { date: Date; label: string; dayNum: number; isToday: boolean }[] {
+function getWeekDays(weekOffset: number = 0): { date: Date; label: string; dayNum: number; isToday: boolean }[] {
   const today = new Date();
   const day   = today.getDay(); // 0=dimanche
   // Début de semaine = lundi
   const mondayOffset = day === 0 ? -6 : 1 - day;
   return DAYS_SHORT.map((label, i) => {
     const d = new Date(today);
-    d.setDate(today.getDate() + mondayOffset + i);
+    d.setDate(today.getDate() + mondayOffset + (weekOffset * 7) + i);
     return {
       date:    d,
       label,
       dayNum:  d.getDate(),
-      isToday: d.toDateString() === today.toDateString(),
+      isToday: weekOffset === 0 && d.toDateString() === today.toDateString(),
     };
   });
 }
@@ -78,6 +85,10 @@ export default function ChildHome() {
   const [journalSaved, setJournalSaved] = useState(false);
   // Checklist
   const [checked, setChecked]         = useState<Record<string, boolean>>({});
+  // Week navigation (Bug #17)
+  const [weekOffset, setWeekOffset]   = useState(0);
+  // Family data for parent calls (Bug #19)
+  const [familyData, setFamilyData]   = useState<any>(null);
 
   // ── Adaptation par âge ──────────────────────────────────────────
   function getAgeAdaptation(age: '4-7' | '8-12' | '13-17') {
@@ -112,7 +123,7 @@ export default function ChildHome() {
     }
   }
 
-  const weekDays = getWeekDays();
+  const weekDays = getWeekDays(weekOffset);
 
   // ── Chargement initial ───────────────────────────────────────
   useEffect(() => {
@@ -125,6 +136,22 @@ export default function ChildHome() {
       if (m !== null) setMood(parseInt(m, 10));
       if (j)          setJournalText(j);
       if (c)          setChecked(JSON.parse(c));
+
+      // Fetch family data for parent calls (Bug #19)
+      try {
+        const token = await SecureStore.getItemAsync(TOKEN_KEY);
+        if (token) {
+          const res = await fetch(`${API_BASE}/api/families/me`, {
+            headers: { 'Authorization': `Bearer ${token}` },
+          });
+          if (res.ok) {
+            const data = await res.json();
+            setFamilyData(data);
+          }
+        }
+      } catch (e) {
+        console.log('Could not fetch family data:', e);
+      }
     }
     load();
   }, []);
@@ -150,9 +177,26 @@ export default function ChildHome() {
     await AsyncStorage.setItem(CHECKLIST_KEY, JSON.stringify(next));
   }
 
-  // ── Appel parent ──────────────────────────────────────────────
+  // ── Appel parent (Bug #19 - now uses real phone numbers) ─────
   function callParent(who: 'papa' | 'maman') {
     const parentLabel = who === 'papa' ? t('child.home.dad') : t('child.home.mom');
+
+    let phoneNumber: string | null = null;
+    if (familyData) {
+      const parent = who === 'papa' ? familyData.parent_a : familyData.parent_b;
+      if (parent && parent.phone) {
+        phoneNumber = parent.phone;
+      }
+    }
+
+    if (!phoneNumber) {
+      Alert.alert(
+        t('child.home.callTitle', { parent: parentLabel }),
+        t('child.home.callNoNumber') || `${parentLabel} n'a pas encore ajouté son numéro de téléphone.`
+      );
+      return;
+    }
+
     Alert.alert(
       t('child.home.callTitle', { parent: parentLabel }),
       t('child.home.callBody', { parent: parentLabel }),
@@ -161,8 +205,7 @@ export default function ChildHome() {
         {
           text: t('child.home.callYes'),
           onPress: () => {
-            // En prod, on utiliserait le numéro réel depuis l'API famille
-            Alert.alert(t('child.home.calling'), t('child.home.callingBody', { parent: parentLabel }));
+            Linking.openURL(`tel:${phoneNumber}`);
           },
         },
       ]
@@ -172,6 +215,18 @@ export default function ChildHome() {
   const adapt   = getAgeAdaptation(childAge);
   const today   = new Date();
   const todayStr = today.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+
+  // Week range label for navigation header (Bug #17)
+  function getWeekRangeLabel(): string {
+    const days = weekDays;
+    const first = days[0].date;
+    const last = days[6].date;
+    if (first.getMonth() === last.getMonth()) {
+      return `${first.getDate()} - ${last.getDate()} ${first.toLocaleDateString('fr-FR', { month: 'long' })}`;
+    }
+    const opts: Intl.DateTimeFormatOptions = { day: 'numeric', month: 'long' };
+    return `${first.toLocaleDateString('fr-FR', opts)} - ${last.toLocaleDateString('fr-FR', opts)}`;
+  }
 
   return (
     <ScrollView
@@ -220,9 +275,20 @@ export default function ChildHome() {
         </View>
       </View>
 
-      {/* ── Calendrier semaine ── */}
+      {/* ── Calendrier semaine (Bug #17 - week navigation) ── */}
       <View style={[styles.section, { marginTop: adapt.spacing }]}>
-        <Text style={[styles.sectionTitle, { fontSize: adapt.detailedView ? 14 : 16 }]}>{t('child.home.myWeek')}</Text>
+        <View style={styles.weekHeaderRow}>
+          <TouchableOpacity onPress={() => setWeekOffset(weekOffset - 1)} style={styles.weekNavBtn}>
+            <Ionicons name="chevron-back" size={22} color={CHILD_PURPLE} />
+          </TouchableOpacity>
+          <View style={{ alignItems: 'center' }}>
+            <Text style={[styles.sectionTitle, { fontSize: adapt.detailedView ? 14 : 16, marginBottom: 0 }]}>{t('child.home.myWeek')}</Text>
+            <Text style={styles.weekRangeLabel}>{getWeekRangeLabel()}</Text>
+          </View>
+          <TouchableOpacity onPress={() => setWeekOffset(weekOffset + 1)} style={styles.weekNavBtn}>
+            <Ionicons name="chevron-forward" size={22} color={CHILD_PURPLE} />
+          </TouchableOpacity>
+        </View>
         <View style={[styles.card, styles.weekRow, { padding: adapt.detailedView ? 8 : adapt.spacing / 2 }]}>
           {weekDays.map((d, i) => (
             <View key={i} style={[
@@ -501,37 +567,51 @@ const styles = StyleSheet.create({
   callLabel: { fontSize: 18, fontWeight: '800', color: '#FFF' },
 
   // Semaine
-  weekRow:    { flexDirection: 'row', justifyContent: 'space-between', padding: 8 },
-  dayCell:    { alignItems: 'center', gap: 4, paddingHorizontal: 4, paddingVertical: 6, borderRadius: 10 },
+  weekHeaderRow: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'space-between' as const,
+    marginBottom: 10,
+  },
+  weekNavBtn: {
+    padding: 8,
+  },
+  weekRangeLabel: {
+    fontSize: 12,
+    color: '#6B46C1',
+    marginTop: 2,
+  },
+  weekRow:    { flexDirection: 'row' as const, justifyContent: 'space-between' as const, padding: 8 },
+  dayCell:    { alignItems: 'center' as const, gap: 4, paddingHorizontal: 4, paddingVertical: 6, borderRadius: 10 },
   dayCellToday: { backgroundColor: CHILD_PURPLE },
-  dayLabel:   { fontSize: 10, color: '#6B46C1', fontWeight: '700' },
+  dayLabel:   { fontSize: 10, color: '#6B46C1', fontWeight: '700' as const },
   dayLabelToday: { color: '#FFF' },
-  dayNum:     { fontSize: 16, fontWeight: '800', color: '#2D3748' },
+  dayNum:     { fontSize: 16, fontWeight: '800' as const, color: '#2D3748' },
   dayNumToday: { color: '#FFF' },
   dayDot:     { width: 8, height: 8, borderRadius: 4 },
-  weekLegend: { fontSize: 11, color: '#6B46C1', marginTop: 8, paddingHorizontal: 8, flexDirection: 'row', alignItems: 'center' },
+  weekLegend: { fontSize: 11, color: '#6B46C1', marginTop: 8, paddingHorizontal: 8, flexDirection: 'row' as const, alignItems: 'center' as const },
   legendDot:  { width: 8, height: 8, borderRadius: 4, display: 'inline-flex' as any },
 
   // Humeur
-  moodRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 8 },
-  moodBtn: { alignItems: 'center', padding: 8, borderRadius: 12, minWidth: 48 },
+  moodRow: { flexDirection: 'row' as const, justifyContent: 'space-between' as const, alignItems: 'flex-start' as const, padding: 8 },
+  moodBtn: { alignItems: 'center' as const, padding: 8, borderRadius: 12, minWidth: 48 },
   moodEmoji:   { fontSize: 32 },
-  moodLabel:   { fontSize: 9, fontWeight: '700', marginTop: 4, textAlign: 'center' },
-  moodConfirm: { fontSize: 12, color: CHILD_GREEN, fontWeight: '600', marginTop: 8, paddingHorizontal: 4 },
+  moodLabel:   { fontSize: 9, fontWeight: '700' as const, marginTop: 4, textAlign: 'center' as const },
+  moodConfirm: { fontSize: 12, color: CHILD_GREEN, fontWeight: '600' as const, marginTop: 8, paddingHorizontal: 4 },
 
   // Checklist
-  checkRow:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: CHILD_BORDER },
-  checkbox:    { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: CHILD_BORDER, justifyContent: 'center', alignItems: 'center' },
+  checkRow:    { flexDirection: 'row' as const, alignItems: 'center' as const, gap: 10, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: CHILD_BORDER },
+  checkbox:    { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: CHILD_BORDER, justifyContent: 'center' as const, alignItems: 'center' as const },
   checkboxChecked: { backgroundColor: CHILD_GREEN, borderColor: CHILD_GREEN },
   checkEmoji:  { fontSize: 18 },
-  checkLabel:  { flex: 1, fontSize: 14, color: '#2D3748', fontWeight: '500' },
-  checkLabelDone: { textDecorationLine: 'line-through', color: '#A0AEC0' },
-  progressBar: { height: 6, backgroundColor: CHILD_BORDER, borderRadius: 3, marginTop: 12, overflow: 'hidden' },
+  checkLabel:  { flex: 1, fontSize: 14, color: '#2D3748', fontWeight: '500' as const },
+  checkLabelDone: { textDecorationLine: 'line-through' as const, color: '#A0AEC0' },
+  progressBar: { height: 6, backgroundColor: CHILD_BORDER, borderRadius: 3, marginTop: 12, overflow: 'hidden' as const },
   progressFill: { height: '100%', backgroundColor: CHILD_GREEN, borderRadius: 3 },
-  progressText: { fontSize: 12, color: '#6B46C1', marginTop: 6, textAlign: 'right', fontWeight: '600' },
+  progressText: { fontSize: 12, color: '#6B46C1', marginTop: 6, textAlign: 'right' as const, fontWeight: '600' as const },
 
   // Journal
-  journalHint:  { fontSize: 12, color: '#9F7AEA', marginBottom: 10, fontStyle: 'italic' },
+  journalHint:  { fontSize: 12, color: '#9F7AEA', marginBottom: 10, fontStyle: 'italic' as const },
   journalInput: {
     minHeight: 130, fontSize: 14, color: '#2D3748',
     backgroundColor: '#FAF5FF', borderRadius: 10,
@@ -539,15 +619,15 @@ const styles = StyleSheet.create({
     padding: 12, lineHeight: 22,
   },
   saveBtn: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    flexDirection: 'row' as const, alignItems: 'center' as const, justifyContent: 'center' as const, gap: 8,
     backgroundColor: CHILD_PURPLE, borderRadius: 10, paddingVertical: 12, marginTop: 10,
   },
   saveBtnDone: { backgroundColor: CHILD_GREEN },
-  saveBtnText: { fontSize: 14, fontWeight: '700', color: '#FFF' },
+  saveBtnText: { fontSize: 14, fontWeight: '700' as const, color: '#FFF' },
 
   // Sélecteur d'âge
   ageSelector: {
-    flexDirection: 'row', justifyContent: 'center', gap: 8,
+    flexDirection: 'row' as const, justifyContent: 'center' as const, gap: 8,
     paddingVertical: 10, paddingHorizontal: 16,
     backgroundColor: '#FFF', borderBottomWidth: 1, borderBottomColor: CHILD_BORDER,
   },
@@ -560,7 +640,7 @@ const styles = StyleSheet.create({
     backgroundColor: CHILD_PURPLE, borderColor: CHILD_PURPLE,
   },
   ageBtnText: {
-    fontSize: 12, fontWeight: '700', color: CHILD_PURPLE,
+    fontSize: 12, fontWeight: '700' as const, color: CHILD_PURPLE,
   },
   ageBtnTextActive: {
     color: '#FFF',

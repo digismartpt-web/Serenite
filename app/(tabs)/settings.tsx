@@ -14,6 +14,7 @@ import AsyncStorage            from '@react-native-async-storage/async-storage';
 import { useTheme, THEMES, Theme, ThemeMode } from '../context/ThemeContext';
 import { useAuth }                           from '../hooks/useAuth';
 import { useTranslation }                    from '../../i18n/useTranslation';
+import { LANGUAGES }                           from '../../i18n/translations';
 
 import { API_BASE } from '../constants/api';
 
@@ -98,7 +99,7 @@ export default function SettingsScreen() {
   const insets       = useSafeAreaInsets();
   const { theme, themeId, setTheme, themeMode, setThemeMode } = useTheme();
   const { user, token, logout }      = useAuth();
-  const { t, lang } = useTranslation();
+  const { t, lang, setLang } = useTranslation();
 
   const [notifications, setNotifications] = useState(true);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
@@ -108,6 +109,27 @@ export default function SettingsScreen() {
   const [newPin, setNewPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
   const [changingPin, setChangingPin] = useState(false);
+
+  // ── Profil modal (Bug #7) ──────────────────────────────────
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileFirstName, setProfileFirstName] = useState('');
+  const [profileLastName, setProfileLastName] = useState('');
+  const [profileEmail, setProfileEmail] = useState('');
+  const [savingProfile, setSavingProfile] = useState(false);
+
+  // ── Email verification resend (Bug #8) ─────────────────────
+  const [resendingVerification, setResendingVerification] = useState(false);
+
+  // ── Language modal (Bug #13) ───────────────────────────────
+  const [showLanguageModal, setShowLanguageModal] = useState(false);
+
+  // ── Legal modals (Bug #20, #21) ───────────────────────────
+  const [showCguModal, setShowCguModal] = useState(false);
+  const [cguContent, setCguContent] = useState('');
+  const [loadingCgu, setLoadingCgu] = useState(false);
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [privacyContent, setPrivacyContent] = useState('');
+  const [loadingPrivacy, setLoadingPrivacy] = useState(false);
 
   // ── Avatar initiales ───────────────────────────────────────
   const initials = user
@@ -223,18 +245,140 @@ export default function SettingsScreen() {
     }
   }
 
+
+  // ── Sauvegarder le profil (Bug #7) ────────────────────────
+  async function handleSaveProfile() {
+    if (!profileFirstName.trim()) {
+      Alert.alert(t('error'), 'Le prénom est requis.');
+      return;
+    }
+    if (!profileEmail.trim()) {
+      Alert.alert(t('error'), "L'email est requis.");
+      return;
+    }
+    setSavingProfile(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/users/profile`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          firstName: profileFirstName.trim(),
+          lastName: profileLastName.trim(),
+          email: profileEmail.trim(),
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || 'Erreur lors de la mise à jour du profil');
+      }
+      Alert.alert(t('success'), 'Profil mis à jour avec succès.');
+      setShowProfileModal(false);
+    } catch (err) {
+      Alert.alert(t('error'), err instanceof Error ? err.message : 'Erreur lors de la mise à jour');
+    } finally {
+      setSavingProfile(false);
+    }
+  }
+
+  // ── Renvoyer email de vérification (Bug #8) ───────────────
+  async function handleResendVerification() {
+    setResendingVerification(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/resend-verification`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.message || "Erreur lors de l'envoi");
+      }
+      Alert.alert(t('success'), 'Email de vérification renvoyé avec succès.');
+    } catch (err) {
+      Alert.alert(t('error'), err instanceof Error ? err.message : "Erreur lors de l'envoi de l'email");
+    } finally {
+      setResendingVerification(false);
+    }
+  }
+
+  // ── Changer la langue (Bug #13) ───────────────────────────
+  async function handleSelectLanguage(code: string) {
+    await setLang(code as any);
+    if (token) {
+      try {
+        await fetch(`${API_BASE}/api/users/profile`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ language: code }),
+        });
+      } catch {}
+    }
+    setShowLanguageModal(false);
+  }
+
+  // ── Afficher les CGU (Bug #20) ────────────────────────────
+  async function handleShowCgu() {
+    setShowCguModal(true);
+    if (!cguContent) {
+      setLoadingCgu(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/legal/cgu`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setCguContent(data.content || data.text || data.body || JSON.stringify(data, null, 2));
+      } catch {
+        setCguContent('Impossible de charger les CGU.');
+      } finally {
+        setLoadingCgu(false);
+      }
+    }
+  }
+
+  // ── Afficher la politique de confidentialité (Bug #21) ────
+  async function handleShowPrivacy() {
+    setShowPrivacyModal(true);
+    if (!privacyContent) {
+      setLoadingPrivacy(true);
+      try {
+        const res = await fetch(`${API_BASE}/api/legal/confidentialite`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        setPrivacyContent(data.content || data.text || data.body || JSON.stringify(data, null, 2));
+      } catch {
+        setPrivacyContent('Impossible de charger la politique de confidentialité.');
+      } finally {
+        setLoadingPrivacy(false);
+      }
+    }
+  }
+
   // ── Supprimer le compte ─────────────────────────────────────
   async function handleDeleteAccount() {
     try {
       const res = await fetch(`${API_BASE}/api/users/account`, {
         method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ confirm: true }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || 'Erreur lors de la suppression du compte');
       }
-      router.replace('/auth/login');
+      await logout();
+      router.replace('/onboarding/step1');
     } catch (err) {
       Alert.alert(t('error'), err instanceof Error ? err.message : 'Erreur lors de la suppression du compte');
     }
@@ -275,9 +419,17 @@ export default function SettingsScreen() {
             </Text>
           </View>
           {user && !user.emailVerified && (
-            <View style={styles.unverifiedBadge}>
-              <Text style={styles.unverifiedText}>{t('settings.emailUnverifiedBadge')}</Text>
-            </View>
+            <TouchableOpacity
+              style={styles.unverifiedBadge}
+              onPress={handleResendVerification}
+              disabled={resendingVerification}
+            >
+              {resendingVerification ? (
+                <ActivityIndicator size="small" color="#92400E" />
+              ) : (
+                <Text style={styles.unverifiedText}>{t('settings.emailUnverifiedBadge')}</Text>
+              )}
+            </TouchableOpacity>
           )}
         </View>
 
@@ -288,7 +440,12 @@ export default function SettingsScreen() {
             icon="person-outline"
             label={t('settings.editProfile')}
             value={t('settings.editProfileDesc')}
-            onPress={() => {}}
+            onPress={() => {
+              setProfileFirstName(user?.firstName ?? '');
+              setProfileLastName(user?.lastName ?? '');
+              setProfileEmail(user?.email ?? '');
+              setShowProfileModal(true);
+            }}
             theme={theme}
           />
           <SettingRow
@@ -322,6 +479,13 @@ export default function SettingsScreen() {
             value={t('settings.childSpaceDesc')}
             iconColor="#5B3FA0"
             onPress={handleChildSpace}
+            theme={theme}
+          />
+          <SettingRow
+            icon="add-circle-outline"
+            label={t('settings.addChild')}
+            value={t('settings.addChildDesc')}
+            onPress={() => router.push('/invite/children')}
             theme={theme}
           />
         </View>
@@ -447,7 +611,7 @@ export default function SettingsScreen() {
             icon="language-outline"
             label={t('settings.appLanguage')}
             value={{ fr: 'Français', en: 'English', es: 'Español', pt: 'Português' }[user?.language ?? lang] ?? 'Français'}
-            onPress={() => {}}
+            onPress={() => setShowLanguageModal(true)}
             theme={theme}
           />
         </View>
@@ -458,13 +622,13 @@ export default function SettingsScreen() {
           <SettingRow
             icon="document-text-outline"
             label={t('step5.cgu')}
-            onPress={() => {}}
+            onPress={handleShowCgu}
             theme={theme}
           />
           <SettingRow
             icon="shield-checkmark-outline"
             label={t('settings.privacyPolicy')}
-            onPress={() => {}}
+            onPress={handleShowPrivacy}
             theme={theme}
           />
           <SettingRow
@@ -595,6 +759,175 @@ export default function SettingsScreen() {
                 )}
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─ Modal modification profil (Bug #7) ─ */}
+      <Modal
+        visible={showProfileModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowProfileModal(false)}
+      >
+        <View style={pinModalStyles.overlay}>
+          <View style={[pinModalStyles.container, { backgroundColor: theme.surface }]}>
+            <Text style={[pinModalStyles.title, { color: theme.text }]}>
+              {t('settings.editProfile')}
+            </Text>
+
+            <Text style={[pinModalStyles.label, { color: theme.textSecondary }]}>
+              {t('step2.firstName')}
+            </Text>
+            <TextInput
+              style={[pinModalStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background, textAlign: 'left', letterSpacing: 0 }]}
+              value={profileFirstName}
+              onChangeText={setProfileFirstName}
+              placeholder={t('step2.firstNamePH')}
+              placeholderTextColor={theme.textSecondary}
+            />
+
+            <Text style={[pinModalStyles.label, { color: theme.textSecondary }]}>
+              {t('step2.lastName')}
+            </Text>
+            <TextInput
+              style={[pinModalStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background, textAlign: 'left', letterSpacing: 0 }]}
+              value={profileLastName}
+              onChangeText={setProfileLastName}
+              placeholder={t('step2.lastNamePH')}
+              placeholderTextColor={theme.textSecondary}
+            />
+
+            <Text style={[pinModalStyles.label, { color: theme.textSecondary }]}>
+              {t('step2.email')}
+            </Text>
+            <TextInput
+              style={[pinModalStyles.input, { color: theme.text, borderColor: theme.border, backgroundColor: theme.background, textAlign: 'left', letterSpacing: 0 }]}
+              value={profileEmail}
+              onChangeText={setProfileEmail}
+              placeholder={t('step2.emailPH')}
+              placeholderTextColor={theme.textSecondary}
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <View style={pinModalStyles.buttons}>
+              <TouchableOpacity
+                style={[pinModalStyles.cancelBtn, { borderColor: theme.border }]}
+                onPress={() => setShowProfileModal(false)}
+              >
+                <Text style={[pinModalStyles.cancelText, { color: theme.textSecondary }]}>{t('cancel')}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[pinModalStyles.confirmBtn, { backgroundColor: theme.primary }]}
+                onPress={handleSaveProfile}
+                disabled={savingProfile}
+              >
+                {savingProfile ? (
+                  <ActivityIndicator size="small" color="#FFF" />
+                ) : (
+                  <Text style={pinModalStyles.confirmText}>{t('save')}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─ Modal langue (Bug #13) ─ */}
+      <Modal
+        visible={showLanguageModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLanguageModal(false)}
+      >
+        <View style={pinModalStyles.overlay}>
+          <View style={[pinModalStyles.container, { backgroundColor: theme.surface }]}>
+            <Text style={[pinModalStyles.title, { color: theme.text }]}>
+              {t('settings.appLanguage')}
+            </Text>
+            {LANGUAGES.map((l) => {
+              const isActive = (user?.language ?? lang) === l.code;
+              return (
+                <TouchableOpacity
+                  key={l.code}
+                  style={[langModalStyles.langRow, { borderBottomColor: theme.border, backgroundColor: isActive ? theme.primary + '15' : 'transparent' }]}
+                  onPress={() => handleSelectLanguage(l.code)}
+                >
+                  <Text style={langModalStyles.langFlag}>{l.flag}</Text>
+                  <Text style={[langModalStyles.langLabel, { color: theme.text }]}>{l.label}</Text>
+                  {isActive && <Ionicons name="checkmark-circle" size={20} color={theme.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+            <TouchableOpacity
+              style={[pinModalStyles.cancelBtn, { borderColor: theme.border, marginTop: 16 }]}
+              onPress={() => setShowLanguageModal(false)}
+            >
+              <Text style={[pinModalStyles.cancelText, { color: theme.textSecondary }]}>{t('cancel')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─ Modal CGU (Bug #20) ─ */}
+      <Modal
+        visible={showCguModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCguModal(false)}
+      >
+        <View style={pinModalStyles.overlay}>
+          <View style={[legalModalStyles.container, { backgroundColor: theme.surface }]}>
+            <Text style={[pinModalStyles.title, { color: theme.text }]}>
+              {t('step5.cgu')}
+            </Text>
+            <ScrollView style={legalModalStyles.scroll} contentContainerStyle={{ paddingBottom: 16 }}>
+              {loadingCgu ? (
+                <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 40 }} />
+              ) : (
+                <Text style={[legalModalStyles.content, { color: theme.text }]}>
+                  {cguContent}
+                </Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity
+              style={[pinModalStyles.confirmBtn, { backgroundColor: theme.primary, marginTop: 12 }]}
+              onPress={() => setShowCguModal(false)}
+            >
+              <Text style={pinModalStyles.confirmText}>{t('ok')}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─ Modal Politique de confidentialité (Bug #21) ─ */}
+      <Modal
+        visible={showPrivacyModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPrivacyModal(false)}
+      >
+        <View style={pinModalStyles.overlay}>
+          <View style={[legalModalStyles.container, { backgroundColor: theme.surface }]}>
+            <Text style={[pinModalStyles.title, { color: theme.text }]}>
+              {t('settings.privacyPolicy')}
+            </Text>
+            <ScrollView style={legalModalStyles.scroll} contentContainerStyle={{ paddingBottom: 16 }}>
+              {loadingPrivacy ? (
+                <ActivityIndicator size="large" color={theme.primary} style={{ marginTop: 40 }} />
+              ) : (
+                <Text style={[legalModalStyles.content, { color: theme.text }]}>
+                  {privacyContent}
+                </Text>
+              )}
+            </ScrollView>
+            <TouchableOpacity
+              style={[pinModalStyles.confirmBtn, { backgroundColor: theme.primary, marginTop: 12 }]}
+              onPress={() => setShowPrivacyModal(false)}
+            >
+              <Text style={pinModalStyles.confirmText}>{t('ok')}</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -752,3 +1085,34 @@ const pinModalStyles = StyleSheet.create({
     color: '#FFF',
   },
 });
+
+const langModalStyles = StyleSheet.create({
+  langRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderRadius: 8,
+    marginBottom: 2,
+  },
+  langFlag: { fontSize: 22, marginRight: 12 },
+  langLabel: { fontSize: 15, fontWeight: '600', flex: 1 },
+});
+
+const legalModalStyles = StyleSheet.create({
+  container: {
+    width: '100%',
+    maxHeight: '80%',
+    borderRadius: 16,
+    padding: 24,
+  },
+  scroll: {
+    maxHeight: 400,
+  },
+  content: {
+    fontSize: 14,
+    lineHeight: 22,
+  },
+});
+

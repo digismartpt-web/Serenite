@@ -24,6 +24,8 @@ import mediatorsRouter    from './routes/mediators';
 import uploadRoutes       from './routes/uploads';
 import vaultRoutes        from './routes/vault';
 import healthRoutes       from './routes/health';
+import livekitRouter      from './routes/livekit';
+import legalRouter        from './routes/legal';
 import exportRoutes       from './routes/exports';
 
 // ─── Validation des variables d'environnement critiques ───────
@@ -193,6 +195,8 @@ app.get("/api/status", (_req, res) => {
 
 app.use('/api/health',     healthRoutes);
 app.use('/api/exports',    exportRoutes);
+app.use('/api/livekit',     livekitRouter);
+app.use('/api/legal',      legalRouter);
 
 // Servir les fichiers uploads
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

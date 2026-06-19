@@ -63,7 +63,7 @@ export async function query<T = any>(
           : typeof val === 'string'
           ? `'${val.replace(/'/g, "''")}'`
           : String(val);
-      sql = sql.replace(`##${i + 1}##`, strVal);
+      sql = sql.replace(new RegExp(`##${i + 1}##`, "g"), strVal);
     }
   }
   const result = runSQL(sql);

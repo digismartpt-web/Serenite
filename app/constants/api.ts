@@ -18,6 +18,8 @@ export const ENDPOINTS = {
   me:              `${API_URL}/api/auth/me`,
   verifyEmail:     `${API_URL}/api/auth/verify-email`,
   updatePin:       `${API_URL}/api/auth/update-pin`,
+  forgotPin:       `${API_URL}/api/auth/forgot-pin`,
+  resetPin:        `${API_URL}/api/auth/reset-pin`,
 
   // Messagerie CNV
   reformulate:     `${API_URL}/api/messages/reformulate`,

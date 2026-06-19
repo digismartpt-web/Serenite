@@ -26,9 +26,10 @@ export default function JoinScreen() {
   // Le token peut être passé via deep link (serenite://join/[token])
   const { token: deepLinkToken } = useLocalSearchParams<{ token?: string }>();
 
-  const [code,     setCode]     = useState('');
-  const [state,    setState]    = useState<State>('idle');
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [code,      setCode]      = useState('');
+  const [state,     setState]     = useState<State>('idle');
+  const [errorMsg,  setErrorMsg]  = useState<string | null>(null);
+  const [needsAuth, setNeedsAuth] = useState(false);
 
   // Animation pour le feedback de succès
   const successAnim = useRef(new Animated.Value(0)).current;
@@ -38,15 +39,9 @@ export default function JoinScreen() {
   useEffect(() => {
     if (deepLinkToken && !authLoading) {
       if (!authToken) {
-        // Pas connecté — sauvegarder le token d'invitation et rediriger vers login
+        // Pas connecté — sauvegarder le token d'invitation et afficher l'écran d'auth
         try { localStorage.setItem('serenite_pending_invite', deepLinkToken); } catch {}
-        // router.replace ne fonctionne pas tjs sur web en direct URL
-        setTimeout(() => {
-          try { router.replace('/auth/login'); } catch {}
-          if (typeof window !== 'undefined' && window.location.pathname !== '/auth/login') {
-            window.location.href = '/auth/login';
-          }
-        }, 100);
+        setNeedsAuth(true);
         return;
       }
       acceptWithToken(deepLinkToken);
@@ -108,6 +103,44 @@ export default function JoinScreen() {
   }, [authToken]);
 
   // ── Rendu ─────────────────────────────────────────────────────
+
+  // Écran "authentification requise" (QR scanné sans être connecté)
+  if (needsAuth) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.illustration}>
+          <Text style={styles.illustrationIcon}>🎉</Text>
+        </View>
+        <Text style={styles.title}>{t('invite.authRequiredTitle')}</Text>
+        <Text style={styles.subtitle}>
+          {t('invite.authRequiredDesc')}
+        </Text>
+
+        <TouchableOpacity
+          style={styles.joinBtn}
+          onPress={() => router.replace('/onboarding/step1')}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.joinBtnText}>
+            {t('invite.createAccount')}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.joinBtn, styles.secondaryBtn]}
+          onPress={() => {
+            // Le token est déjà sauvegardé dans localStorage
+            router.replace('/auth/login');
+          }}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.joinBtnText, styles.secondaryBtnText]}>
+            {t('invite.loginToAccept')}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
 
   if (state === 'success') {
     return (
@@ -281,10 +314,22 @@ const styles = StyleSheet.create({
       android: { elevation: 0 },
     }),
   },
+  secondaryBtn: {
+    backgroundColor: 'transparent',
+    borderWidth: 2,
+    borderColor: '#1A3A5C',
+    ...Platform.select({
+      ios:     { shadowOpacity: 0 },
+      android: { elevation: 0 },
+    }),
+  },
   joinBtnText: {
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '700',
+  },
+  secondaryBtnText: {
+    color: '#1A3A5C',
   },
   divider: {
     flexDirection: 'row',

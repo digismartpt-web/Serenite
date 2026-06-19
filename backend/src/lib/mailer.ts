@@ -11,7 +11,7 @@
  */
 
 const FROM    = process.env.MAIL_FROM    ?? 'noreply@serenite.app';
-const APP_URL = process.env.APP_URL      ?? 'https://serenite.app';
+const APP_URL = process.env.APP_URL      ?? 'https://serenite.newappai.com';
 const IS_PROD = process.env.NODE_ENV     === 'production';
 
 // ─── Échappement HTML ─────────────────────────────────────────
@@ -90,7 +90,7 @@ export async function sendEmailVerification(
   });
 }
 
-/** Envoie un email de réinitialisation de PIN. */
+/** Envoie un email de réinitialisation de PIN (lien). */
 export async function sendPinReset(
   to: string,
   firstName: string,
@@ -112,6 +112,33 @@ export async function sendPinReset(
         ">Réinitialiser mon PIN</a>
       </p>
       <p style="color:#718096;font-size:13px;">Ce lien expire dans 30 minutes.</p>
+      <p style="color:#718096;font-size:12px;">
+        Si vous n'avez pas demandé cette action, ignorez cet email.
+      </p>
+    `,
+  });
+}
+
+/** Envoie un code à 6 chiffres par email pour la réinitialisation de PIN. */
+export async function sendPinResetCode(
+  to: string,
+  firstName: string,
+  code: string
+): Promise<void> {
+  await sendMail({
+    to,
+    subject: 'Code de réinitialisation PIN – Sérénité',
+    text: `Bonjour ${firstName},\n\nVotre code de réinitialisation PIN est : ${code}\n\nCe code expire dans 15 minutes.\n\nSi vous n'avez pas demandé cette réinitialisation, ignorez cet email.\n\nL'équipe Sérénité`,
+    html: `
+      <p>Bonjour <strong>${escapeHtml(firstName)}</strong>,</p>
+      <p>Votre code de réinitialisation PIN est :</p>
+      <p style="
+        font-size:32px;font-weight:800;letter-spacing:8px;
+        text-align:center;padding:20px;
+        background:#F7FAFC;border-radius:12px;
+        color:#1A3A5C;margin:20px 0;
+      ">${escapeHtml(code)}</p>
+      <p style="color:#718096;font-size:13px;">Ce code expire dans 15 minutes.</p>
       <p style="color:#718096;font-size:12px;">
         Si vous n'avez pas demandé cette action, ignorez cet email.
       </p>
